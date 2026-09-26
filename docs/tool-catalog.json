@@ -104,6 +104,36 @@
     }
   },
   {
+    "name": "builder_capabilities",
+    "description": "Report sidecar builder capabilities from live discovery. External-file editing requires External Edit registration. Complete object APIs are unavailable without a compatible native endpoint; runtime injection is not implemented. Discovery is not a live-effect test.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "builder_capabilitiesArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "builder_selection_summary",
+    "description": "Read the visible Build panel's displayed link number or selected face indices through stock LEAP. Leaves selection untouched. Hidden/disabled labels return unknown; no object UUID, full linkset or complete face metadata is inferred.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "builder_selection_summaryArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
     "name": "camera_release",
     "description": "Release scripted camera control. This returns to viewer camera behavior, not an exact saved manual camera pose.",
     "inputSchema": {
@@ -651,6 +681,138 @@
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "object_faces",
+    "description": "Read native FSMCPBuilder texture entries for one loaded prim: face indices, texture IDs, color and UV parameters. Does not claim mesh triangles are faces or resolve PBR assets.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "object_id"
+      ],
+      "title": "object_facesArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "object_linkset",
+    "description": "Read a loaded object's linkset using native FSMCPBuilder. Link numbers follow the viewer's current child order; simulator completeness is not guaranteed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "object_id"
+      ],
+      "title": "object_linksetArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "object_selection",
+    "description": "Read selected object UUIDs and selected texture-entry face indices using the native FSMCPBuilder extension. Stock Firestorm returns an explicit unsupported error.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "object_selectionArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "script_read",
+    "description": "Read a registered script's UTF-8 source and SHA256 for conflict detection. This reads the external-editor file, not the simulator asset.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "title": "script_readArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "script_sessions",
+    "description": "List script files explicitly registered by Firestorm's External Edit button. Does not scan inventory or temporary directories. Active file is not proof that the editor is still open.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "script_sessionsArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "script_write",
+    "description": "Write a registered script with a required prior SHA256 and backup. Requires a control lease. Firestorm may automatically compile/save to the simulator; this call verifies only the local file. Inspect compiler results before retrying.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "expected_sha256": {
+          "title": "Expected Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "source",
+        "expected_sha256"
+      ],
+      "title": "script_writeArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
       "openWorldHint": true
     }
   },
@@ -5415,6 +5577,42 @@
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "viewer_latency",
+    "description": "Measure 1-20 sequential bridge plus viewer event-loop ping round trips in milliseconds. No world mutation. Does not measure simulator, asset loading or script compile latency.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "samples": {
+          "default": 5,
+          "title": "Samples",
+          "type": "integer"
+        }
+      },
+      "title": "viewer_latencyArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "viewer_runtime_identity",
+    "description": "Fingerprint the connected Windows viewer's executable on disk for build diagnostics. Does not inject, read process memory, or prove the running image matches the file.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "viewer_runtime_identityArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
       "openWorldHint": true
     }
   },

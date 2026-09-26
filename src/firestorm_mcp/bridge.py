@@ -19,6 +19,7 @@ import xml.etree.ElementTree as ET
 
 from .protocol import FrameDecodeError, decode_typed, encode_frame, json_default, read_frame
 from .paths import viewer_directory
+from .process_identity import parent_viewer
 
 LOG = logging.getLogger(__name__)
 
@@ -210,6 +211,12 @@ class LeapBridge:
                 return self.discover()
             if self.owner and self.owner != client_id:
                 raise RuntimeError("Viewer control is held by " + str(self.owner_label))
+            if method == "assert_control":
+                if not self.connected or not self.owner or self.owner != client_id:
+                    raise RuntimeError("Acquire an active viewer control lease before saving scripts")
+                return {"viewer_pid": parent_viewer().pid, "connected": True}
+            if method == "ping":
+                return self.request(self.command_pump, {"op": "ping"}, timeout=5)
             if method == "menu":
                 entry = request["entry"]
                 matches = []

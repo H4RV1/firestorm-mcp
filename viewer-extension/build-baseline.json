@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/FirestormViewer/phoenix-firestorm.git",
+  "branch": "Firestorm_7.2.4",
+  "commit": "10bd3c9f930c76e1427ddd4ecece6cdf36b4406d",
+  "variables_repository": "https://github.com/FirestormViewer/fs-build-variables.git",
+  "variables_commit": "c17312d38377c003977cf5b6dcc83c6042eba194",
+  "build_configuration": "ReleaseFS_open",
+  "channel": "Firestorm-MCP-Development",
+  "profile_name": "FirestormMCP",
+  "native_api": "FSMCPBuilder",
+  "response_schema_version": 1,
+  "fmod_audio": false,
+  "openal_audio": true,
+  "audio_runtime_verified": false,
+  "kakadu": false,
+  "havok": false,
+  "opensim_support": true,
+  "update_strategy": "Reapply the small source patch to an explicit newer revision, rebuild separately, validate, then switch the launcher. Official updates do not update this build."
+}

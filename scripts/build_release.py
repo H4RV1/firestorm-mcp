@@ -16,8 +16,8 @@ root_names = {'README.md', 'LICENSE', 'CONTRIBUTING.md', 'AGENTS.md', 'SECURITY.
               'Install.cmd', 'Install.ps1', 'Start-FirestormMCP.cmd', 'Start-FirestormMCP.ps1',
               'Check-FirestormMCP.cmd', '.gitignore', '.gitattributes', 'MANIFEST.in',
               'install.py', 'Install.sh', 'Start-FirestormMCP.sh', 'Check-FirestormMCP.sh'}
-trees = {'src', 'tests', 'docs', 'scripts', 'skills', '.github'}
-suffixes = {'.py', '.dae', '.md', '.json', '.yml', '.yaml', '.txt'}
+trees = {'src', 'tests', 'docs', 'scripts', 'skills', '.github', 'viewer-extension'}
+suffixes = {'.py', '.dae', '.md', '.json', '.yml', '.yaml', '.txt', '.cpp', '.h'}
 files = []
 for path in sorted(root.rglob('*')):
     if not path.is_file():
