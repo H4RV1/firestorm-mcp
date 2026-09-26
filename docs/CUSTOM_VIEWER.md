@@ -5,6 +5,12 @@ bridge, and a small compiled `FSMCPBuilder` API in a separate viewer. Python
 workflow changes usually need only a server restart. New native APIs require a
 viewer rebuild. Runtime DLL injection is not used.
 
+The newer [asset/inventory extension](ASSET_API.md) adds `FSMCPAssets` to that
+architecture. It uses `Firestorm-MCP-Assets-Development` and `FirestormMCPAssets`
+for a separate installation/profile. Its [build record](../viewer-extension/assets-build-baseline.json)
+and [pending live acceptance](ASSET_ACCEPTANCE.md) are distinct from the earlier
+builder-only viewer results below.
+
 ## What survives an official update
 
 Install/run the development viewer in its own directory. Use the distinct

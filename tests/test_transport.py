@@ -23,6 +23,24 @@ def test_modern_viewer_binary_greeting():
     assert read_frame(Fragmented(str(len(body)).encode() + b":" + body)) == data
 
 
+def test_assets_cannot_bypass_another_client_lease(channel):
+    bridge, _, _ = channel
+    bridge.owner = 'other-client'
+    bridge.owner_label = 'Synthetic owner'
+    bridge.lease_until = time.monotonic() + 30
+    result = bridge.handle({'method': 'call', 'client_id': 'consumer',
+                            'api': 'FSMCPAssets', 'op': 'submit', 'arguments': {}})
+    assert result['failure']['code'] == 'lease_conflict'
+    assert result['failure']['unknownOutcome'] is False
+
+
+def test_assets_gateway_required_even_via_viewer_call(channel):
+    bridge, _, _ = channel
+    with pytest.raises(RuntimeError, match='gateway/journal'):
+        bridge.handle({'method': 'call', 'client_id': 'consumer',
+                       'api': 'FSMCPAssets', 'op': 'submit', 'arguments': {}})
+
+
 @pytest.mark.parametrize("offset", [5000, 16377, 73721])
 def test_windows_apr_duplicate_chunk_recovery(offset):
     data = {"pump": "reply", "data": {"reqid": "test-id", "paths": ["/test/panel/" + str(i) + "/" + "x" * 97 for i in range(1000)]}}

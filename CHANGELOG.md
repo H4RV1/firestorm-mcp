@@ -1,3 +1,14 @@
+# 0.3.0a3+assets.1 (local development)
+
+- Add generic FSMCPAssets v1 native jobs and 19 typed MCP tools for the existing
+  viewer login, fresh inventory, guarded folder cleanup, zero-cost sound upload,
+  notecard content updates and owned-object interaction.
+- Add bounded sound staging, typed login-benefit/explicit quote guards, native
+  codec worker, session generations, lease enforcement, durable request journal
+  and conservative reconciliation without automatic replay.
+- Add isolated native/Python checks, consumer API guide and read-only SDK example.
+  Separate Windows viewer build compiled; live upload/delivery acceptance pending.
+
 # Local builder development (0.3.0a3+builder.1)
 
 - Reuse the upstream LEAP bridge and add ten builder tools, including explicit

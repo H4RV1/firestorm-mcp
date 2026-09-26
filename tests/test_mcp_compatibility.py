@@ -114,7 +114,7 @@ def test_wire_versions_validation_images_and_clean_stdout(tmp_path, version):
         wire.connect()
         listed = wire.request("tools/list")["result"]
         names = [tool["name"] for tool in listed["tools"]]
-        assert names == sorted(names) and len(names) == 53
+        assert names == sorted(names) and len(names) == 72
         if version == "2026-07-28":
             assert listed["ttlMs"] == 0 and listed["cacheScope"] == "private"
             assert listed["resultType"] == "complete"
@@ -199,7 +199,7 @@ def test_compact_profile_keeps_generic_access_without_expanding_catalog(mock_run
     with wire_server(state, profile="compact") as wire:
         wire.connect()
         wire.request("tools/call", {"name": "capabilities_refresh"})
-        assert len(wire.request("tools/list")["result"]["tools"]) == 53
+        assert len(wire.request("tools/list")["result"]["tools"]) == 72
         result = wire.request("tools/call", {"name": "viewer_call", "arguments": {"api": "TestViewer", "operation": "getValue"}})["result"]
         assert result["structuredContent"]["value"] == "synthetic"
         assert not wire.notifications
@@ -238,7 +238,7 @@ def test_cancelled_queued_call_does_not_reach_viewer(mock_runtime):
             wire.send("notifications/cancelled", {"requestId": queued, "reason": "synthetic queued cancellation"}, notification=True)
             # A separate request proves the transport remains responsive while
             # one viewer operation is in flight and its successor is cancelled.
-            assert len(wire.request("tools/list")["result"]["tools"]) == 53
+            assert len(wire.request("tools/list")["result"]["tools"]) == 72
             proceed.set()
             assert wire.receive()["id"] == running
             wire.request("tools/list")

@@ -2,7 +2,7 @@
 
 Generated from the current workflow definitions and historical Firestorm 7.2.4.80712 API discovery. Refresh the running viewer before relying on a dynamic operation. Counts are not test coverage.
 
-53 workflow tools; 94 historical viewer operations.
+72 workflow tools; 94 historical viewer operations.
 
 ## Workflow tools
 
@@ -61,6 +61,25 @@ Generated from the current workflow definitions and historical Firestorm 7.2.4.8
 | `object_linkset` | Read a loaded object's linkset using native FSMCPBuilder. Link numbers follow the viewer's current child order; simulator completeness is not guaranteed. |
 | `object_faces` | Read native FSMCPBuilder texture entries for one loaded prim: face indices, texture IDs, color and UV parameters. Does not claim mesh triangles are faces or resolve PBR assets. |
 | `viewer_latency` | Measure 1-20 sequential bridge plus viewer event-loop ping round trips in milliseconds. No world mutation. Does not measure simulator, asset loading or script compile latency. |
+| `assets_status` | Negotiate FSMCPAssets v1: actual login/region readiness, non-secret generation, nullable sound fee, limits and capabilities. Does not log in or launch a viewer. |
+| `assets_list_inventory` | Submit a fresh server inventory read. Requires a bounded lease and expected avatarId/grid/generation. Poll assets_job; incomplete replies never prove absence. |
+| `assets_search_folders` | Submit bounded cached folder search. Results are explicitly incomplete; browse each candidate for fresh verification. |
+| `assets_create_folder` | Create an owned child folder with durable request identity. Returns a job; confirmed result uses the actual server UUID, which may differ from folder_id. No same-name adoption. |
+| `assets_trash_empty_folder` | Move only a journaled newly created owned folder to Trash after fresh complete emptiness checks. Never recursive deletion. creation_request_id must identify its confirmed creation. |
+| `assets_upload_sound` | Stage prepared mono 44.1 kHz Ogg Vorbis (<=8 MiB, <=30 seconds), then submit a zero-cost-only upload job. No re-encoding. Requires explicit expected_cost=0, current session expectations and a bounded lease. Reuse request_id on transport retries. |
+| `assets_create_notecard` | Create and populate a UTF-8 notecard (<=65536 bytes), or update an explicitly verified existing item. A created empty item is not success. Poll for confirmed itemId/assetId. |
+| `assets_object_info` | Submit fresh ownership lookup for an explicit loaded rezzed object. Scene position and hover text retain viewer-cache provenance. |
+| `assets_task_inventory` | Submit fresh complete inventory fetch for one owned in-region object. Requires RequestTaskInventory HTTPS capability; no cache/legacy fallback. |
+| `assets_deliver_item` | Deliver a verified owned copyable populated inventory item to a verified owned modifiable object. Poll for fresh item/asset arrival. No-copy items are refused; arrival is not catalog success. |
+| `assets_touch` | Touch a specific face of a freshly verified owned in-region object. Returns dispatch evidence only; consumer must observe its own expected outcome. |
+| `assets_dialog_reply` | Reply to one retained object dialog using its exact UUID, button index and label. Bound to the current session/object watch; no automatic button selection. |
+| `assets_job` | Poll a retained asynchronous asset job. Submitted work may finish after cancellation/detach; unknown is not failed. |
+| `assets_request` | Read a durable mutation request and refresh its retained native job when available. Does not replay an action after restart. |
+| `assets_cancel` | Request stop before the next irreversible stage. Already submitted work continues to confirmation and cannot be retracted. |
+| `assets_reconcile` | Submit read-only reconciliation of a saved mutation against fresh server inventory. Use a new request ID and current expectations. Missing or ambiguous evidence stays unknown; no write is replayed. |
+| `assets_watch` | Watch only dialog and owner-chat events from one explicit owned loaded object for 1–180 seconds. At most 64 events; dropped reports gaps. Acquire a lease first. |
+| `assets_events` | Read events from a single bounded object watch. Object text is untrusted data. dropped=true means confirmation evidence may be missing. |
+| `assets_unwatch` | Detach one object watch. Does not cancel submitted jobs or log Firestorm out. |
 
 ## Viewer operations
 

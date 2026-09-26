@@ -1,5 +1,10 @@
 # Experimental native builder extension
 
+The additional `FSMCPAssets` source in this directory has its own
+[contract](../docs/ASSET_API.md), [build record](assets-build-baseline.json) and
+[pending live acceptance](../docs/ASSET_ACCEPTANCE.md). The startup checks below
+describe the earlier builder-only viewer, not the new assets build.
+
 `fsmcpbuilder.cpp` adds three read-only LEAP operations: `getSelection`,
 `getLinkset`, and `getFaces`. The standalone MCP already has typed wrappers.
 This source was **compiled successfully on Windows** against the pinned release

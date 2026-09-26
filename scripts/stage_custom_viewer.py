@@ -32,11 +32,13 @@ def main():
             raise ValueError(f"Build configuration lacks {key}")
         return match.group(1).strip()
     channel = setting("VIEWER_CHANNEL")
-    if channel != "Firestorm-MCP-Development":
-        raise ValueError("Expected the separate Firestorm-MCP-Development channel")
+    profiles = {"Firestorm-MCP-Development": "FirestormMCP",
+                "Firestorm-MCP-Assets-Development": "FirestormMCPAssets"}
+    if channel not in profiles:
+        raise ValueError("Expected a separate MCP development channel")
     constants = (checkout / "indra/llcommon/indra_constants.h").read_text()
-    if 'const std::string APP_NAME = "FirestormMCP";' not in constants:
-        raise ValueError("Expected the separate FirestormMCP settings profile")
+    if f'const std::string APP_NAME = "{profiles[channel]}";' not in constants:
+        raise ValueError("Expected the channel's separate settings profile")
     executable = build / "Release/firestorm-bin.exe"
     if not executable.is_file():
         raise FileNotFoundError("Compile the Release viewer before staging")

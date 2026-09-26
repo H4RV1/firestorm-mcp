@@ -40,6 +40,8 @@ class LeapBridge:
         self.events = collections.deque(maxlen=1000)
         self.apis = {}
         self.started = time.time()
+        self.generation = str(uuid.uuid4())
+        self.assets = None
         self.viewer_dir = viewer_directory()
         self.owner = None
         self.owner_label = None
@@ -177,6 +179,7 @@ class LeapBridge:
         method = request.get("method")
         if method == "status":
             return {"connected": self.connected, "helper_pid": os.getpid(), "started": self.started,
+                    "bridge_generation": self.generation, "asset_bridge_contract": 1 if self.assets else None,
                     "api_count": len(self.apis), "event_cursor": self.sequence,
                     "decode_errors": self.decode_errors,
                     "repaired_duplicate_blocks": self.repaired_duplicate_blocks,
@@ -199,6 +202,8 @@ class LeapBridge:
                 acquired_new = self.owner != client_id
                 self.owner, self.owner_label = client_id, request.get("label", "agent")
                 self.lease_until = max(self.lease_until, time.monotonic() + seconds)
+                if self.assets and "FSMCPAssets" in self.apis:
+                    self.assets.sync_lease()
                 return {"acquired": True, "acquired_new": acquired_new, "owner": self.owner_label,
                         "expires_in_seconds": self.lease_until - time.monotonic()}
             if method == "release":
@@ -206,10 +211,15 @@ class LeapBridge:
                     raise RuntimeError("Only the controlling client can release its lease")
                 self.owner = self.owner_label = None
                 self.lease_until = 0
+                if self.assets:
+                    self.assets.revoked()
                 return {"released": True}
             if method == "discover":
                 return self.discover()
             if self.owner and self.owner != client_id:
+                if method == "call" and request.get("api") == "FSMCPAssets":
+                    return {"schema_version": 1, "ok": False, "failure": {
+                        "code": "lease_conflict", "message": "Another client holds viewer control.", "unknownOutcome": False}}
                 raise RuntimeError("Viewer control is held by " + str(self.owner_label))
             if method == "assert_control":
                 if not self.connected or not self.owner or self.owner != client_id:
@@ -230,6 +240,10 @@ class LeapBridge:
                 self.request(self.command_pump, {"op": "ping"})
                 return {"status": "dispatched", "menu": entry["name"], "verified_effect": False}
             if method == "call":
+                if request["api"] == "FSMCPAssets":
+                    if not self.assets:
+                        raise RuntimeError("Asset gateway/journal is unavailable; restart the separate development viewer when convenient")
+                    return self.assets.handle(request["op"], request.get("arguments"))
                 return self.call(request["api"], request["op"], request.get("arguments"),
                                  request.get("expect_reply"), min(60, max(1, float(request.get("timeout", 15)))))
             if method == "subscribe":
@@ -302,6 +316,9 @@ def main():
     bridge = LeapBridge(sys.stdin.buffer, sys.stdout.buffer)
     bridge.viewer_dir = args.viewer_dir
     args.runtime.mkdir(mode=0o700, parents=True, exist_ok=True)
+    from .asset_gateway import AssetGateway
+    from .asset_journal import AssetJournal
+    bridge.assets = AssetGateway(bridge, AssetJournal(args.runtime.parent / "asset-journal.sqlite3"))
     if args.debug_protocol:
         bridge.debug_protocol_dir = args.runtime
     token = secrets.token_urlsafe(32)
