@@ -14,6 +14,7 @@ import time
 import threading
 import typing
 import uuid
+from urllib.parse import unquote
 import xml.etree.ElementTree as ET
 
 from mcp.server import Server
@@ -32,6 +33,7 @@ from .protocol import json_default
 from .paths import data_root, viewer_directory
 from .doctor import platform_support
 from .builder_tools import register_builder_tools
+from .ui_map import register_ui_map_tools
 from . import __version__
 
 ROOT = data_root()
@@ -60,6 +62,7 @@ class Tools:
         self.call_lock = threading.RLock()
         self._register()
         register_builder_tools(self)
+        register_ui_map_tools(self)
 
     def register(self, description, read_only=False):
         def decorate(fn):
@@ -78,7 +81,7 @@ class Tools:
             self.definitions[fn.__name__] = mt.Tool(name=fn.__name__, description=description,
                 input_schema=schema, annotations=mt.ToolAnnotations(
                     read_only_hint=read_only, destructive_hint=not read_only,
-                    open_world_hint=fn.__name__ not in {"asset_inspect", "image_compare", "capture_manifest_read", "ui_list_menus"}))
+                    open_world_hint=fn.__name__ not in {"asset_inspect", "image_compare", "capture_manifest_read", "ui_list_menus", "ui_map", "ui_task"}))
             return fn
         return decorate
 
@@ -271,13 +274,16 @@ class Tools:
         def events_read(after: int = 0):
             return c.rpc("events", after=after)
 
-        @reg("Search paths or basenames, case-insensitively, within a narrow under path. max_depth=1 includes root and children. Follow next_offset for more results; each page still enumerates the requested subtree.", True)
+        @reg("Search paths or basenames within a narrow live subtree. Whole-view/Floater View and recursive scans are rejected; prefer offline ui_map/ui_task then ui_read. max_depth and paging filter after enumeration, not its cost.", True)
         def ui_find(query: str, under: str = "", limit: int = 50, include_info: bool = False,
                     offset: int = 0, search_in: typing.Literal["path", "name"] = "path",
                     match: typing.Literal["contains", "exact", "prefix", "glob"] = "contains",
                     max_depth: int | None = None):
             if not under:
                 raise ValueError("Supply a narrow under path, such as the ui_path from floater_open, or /main_view/Menu Holder for menus")
+            if unquote(under).rstrip("/") in {"", "/main_view", "/main_view/menu_stack", "/main_view/menu_stack/world_panel",
+                                       "/main_view/menu_stack/world_panel/Floater View"} or "//" in under:
+                raise ValueError("Broad or recursive UI scans are unsafe; use ui_task/ui_map, then ui_read or an exact small subtree")
             if not 1 <= limit <= 200 or offset < 0 or (max_depth is not None and max_depth < 0):
                 raise ValueError("Use limit 1-200, a nonnegative offset and nonnegative max_depth")
             response = c.call("LLWindow", "getPaths", {"under": under}, expect_reply=True)
@@ -699,7 +705,7 @@ def main():
     parser.add_argument("--data-dir", "--root", dest="root", type=Path, default=ROOT, help="Machine-local state directory; --root is a compatibility alias")
     parser.add_argument("--viewer-dir", type=Path, default=viewer_directory())
     parser.add_argument("--tool-profile", choices=("all", "compact"), default="all",
-                        help="compact exposes 43 workflow tools; viewer_call retains discovered API access")
+                        help="compact exposes 56 workflow tools; viewer_call retains discovered API access")
     args = parser.parse_args()
     asyncio.run(serve(args.root, args.viewer_dir, args.tool_profile))
 

@@ -996,7 +996,7 @@
   },
   {
     "name": "ui_find",
-    "description": "Search paths or basenames, case-insensitively, within a narrow under path. max_depth=1 includes root and children. Follow next_offset for more results; each page still enumerates the requested subtree.",
+    "description": "Search paths or basenames within a narrow live subtree. Whole-view/Floater View and recursive scans are rejected; prefer offline ui_map/ui_task then ui_read. max_depth and paging filter after enumeration, not its cost.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1158,6 +1158,54 @@
     }
   },
   {
+    "name": "ui_map",
+    "description": "Search a cached local map of installed XUI control IDs, labels and tooltips, without contacting the viewer. Narrow by document. Candidate paths need ui_read verification; custom skins and duplicate instances are not verified.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "default": "",
+          "title": "Query",
+          "type": "string"
+        },
+        "document": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Document"
+        },
+        "limit": {
+          "default": 30,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "refresh": {
+          "default": false,
+          "title": "Refresh",
+          "type": "boolean"
+        }
+      },
+      "title": "ui_mapArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "ui_press_key",
     "description": "Focus a required visible, enabled path, press/release a key and read back state. Modifiers: CTL/ALT/SHIFT/MAC_CONTROL. Enter can commit forms. Human input and shortcuts can interfere; verify the result.",
     "inputSchema": {
@@ -1208,6 +1256,47 @@
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ui_read",
+    "description": "Read 1-20 exact UI paths or ui_map IDs in one request, using targeted getInfo calls and a total viewer-wait budget. No tree scans or input. Values are opt-in, hidden values suppressed and long values truncated. Does not distinguish duplicate editor instances.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controls": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Controls",
+          "type": "array"
+        },
+        "include_values": {
+          "default": false,
+          "title": "Include Values",
+          "type": "boolean"
+        },
+        "max_chars": {
+          "default": 1000,
+          "title": "Max Chars",
+          "type": "integer"
+        },
+        "timeout": {
+          "default": 10,
+          "title": "Timeout",
+          "type": "number"
+        }
+      },
+      "required": [
+        "controls"
+      ],
+      "title": "ui_readArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
       "openWorldHint": true
     }
   },
@@ -1284,6 +1373,34 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
+    }
+  },
+  {
+    "name": "ui_task",
+    "description": "List task IDs or retrieve a task guide and relevant source control IDs for scripts, Build, inventory, mesh previews or preferences. Does not open anything. Prefer listed semantic tools, then ui_read before UI input.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "task": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task"
+        }
+      },
+      "title": "ui_taskArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {

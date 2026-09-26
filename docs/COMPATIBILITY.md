@@ -10,7 +10,7 @@ The server uses the official **MCP Python SDK v2** (`mcp>=2.2,<3`) over local st
 | Discovery | Explicit viewer refresh; legacy tool-list notifications and current subscriptions. |
 | Results | JSON text, PNG blocks and structured content. Non-object structured results use a `result` wrapper. |
 | Validation | Extra workflow arguments are rejected before dispatch. Unknown tools return a protocol error. |
-| Tool profiles | `compact` lists 53 workflow tools; `all` also lists discovered viewer operations. `viewer_call` is available in both. |
+| Tool profiles | `compact` lists 56 workflow tools; `all` also lists discovered viewer operations. `viewer_call` is available in both. |
 
 The [SDK migration guide](https://py.sdk.modelcontextprotocol.io/migration/) and [2026-07-28 revision notes](https://modelcontextprotocol.io/specification/2026-07-28/changelog) describe the protocol changes. Profiles affect discovery, not permissions.
 

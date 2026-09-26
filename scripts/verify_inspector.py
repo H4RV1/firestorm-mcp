@@ -25,10 +25,10 @@ with tempfile.TemporaryDirectory(prefix="firestorm-inspector-") as temporary:
         return json.loads(result.stdout)
 
     catalog = inspect("--method", "tools/list", "--strict")
-    assert len(catalog["result"]["tools"]) == 53
+    assert len(catalog["result"]["tools"]) == 56
     assert not catalog.get("schemaFindings"), catalog.get("schemaFindings")
     status = inspect("--method", "tools/call", "--tool-name", "connection_status", "--tool-args-json", "{}")
     assert not status["result"].get("isError")
     assert json.loads(status["result"]["content"][0]["text"])["connected"] is False
-    print(json.dumps({"inspector": INSPECTOR, "workflow_tools": 53,
+    print(json.dumps({"inspector": INSPECTOR, "workflow_tools": 56,
                       "schema_findings": 0, "offline_status_call": "passed", "viewer_started": False}))

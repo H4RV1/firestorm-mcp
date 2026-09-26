@@ -4,7 +4,7 @@
 
 [Download](#download) · [Install](#install) · [Tools](docs/TOOLS.md) · [Agent guide](docs/AGENT_GUIDE.md) · [Contribute](CONTRIBUTING.md)
 
-**0.3.0a3+builder.1 · Local development version · MIT**
+**0.3.0a3+uimap.1 · Local development version · MIT**
 
 This checkout extends [AochiToxx/firestorm-mcp](https://github.com/AochiToxx/firestorm-mcp)
 with builder capability checks, measured viewer latency, and registered external-script
@@ -13,6 +13,9 @@ and [script editing](docs/SCRIPT_EDITING.md). The read-only [native object/face 
 has been compiled into a separate development viewer. Live Windows checks passed
 script compile/error/recovery and a 17-prim, 28-face linkset comparison against
 LSL. See [the acceptance record and remaining scope](docs/BUILDER_VALIDATION.md).
+The [UI map and task guides](docs/UI_MAP.md) add offline control discovery and
+targeted batch readback. They reduce repeated UI searches without requiring a
+new native build; live acceptance of this navigation layer is still pending.
 The downloads below are upstream releases and do not contain these local additions.
 Advanced native features use a [separate development viewer](docs/CUSTOM_VIEWER.md)
 with its own installation and settings profile. Official updates do not upgrade
@@ -62,15 +65,15 @@ Automated tests use simulated viewers. They do not certify live desktop control.
 | --- | --- |
 | Export inspection | Read COLLADA, glTF, GLB and image metadata, hashes, dimensions and references. |
 | Mesh previews | Open Local Mesh or the model importer; inspect LODs, physics, warnings, dimensions and displayed fees; adjust the preview camera. |
-| Viewer UI | Find and inspect controls, click registered buttons, enter text, send targeted keys and invoke menus. Windows supports recognized native file pickers. |
+| Viewer UI | Search an installed control map, retrieve task guides, batch exact readback, click buttons, enter text, send targeted keys and invoke menus. Windows supports recognized native file pickers. |
 | Camera and images | Set the world camera, capture images and orbit views, save manifests and compare pixels. |
 | Avatar and scene | Read position, start/poll/stop walking, query nearby objects and search an inventory folder. |
 | Settings and events | Read/change viewer settings, subscribe to events and coordinate agents through control leases. |
 | Live viewer APIs | Discover additional operations, including teleport, appearance, gestures and chat, through `viewer_call`. |
 
-This development server has **53 workflow tools**, including three object tools that require the custom viewer's native extension. Stock Firestorm **7.2.4.80712** exposed **94 further operations across 18 APIs**. Availability varies by viewer and login state; discovery is not test coverage.
+This development server has **56 workflow tools**, including three object tools that require the custom viewer's native extension. Stock Firestorm **7.2.4.80712** exposed **94 further operations across 18 APIs**. Availability varies by viewer and login state; discovery is not test coverage.
 
-Generated configuration uses the **compact** profile: 53 listed tools, with discovered operations available through `viewer_call`. The `all` profile also lists those operations individually after refresh. Both profiles have the same authority.
+Generated configuration uses the **compact** profile: 56 listed tools, with discovered operations available through `viewer_call`. The `all` profile also lists those operations individually after refresh. Both profiles have the same authority.
 
 [Tool reference](docs/TOOLS.md) · [Input schemas](docs/tool-catalog.json) · [MCP compatibility](docs/COMPATIBILITY.md)
 

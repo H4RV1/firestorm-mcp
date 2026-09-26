@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='firestorm-setup-') as folder:
                             cwd=root, env=env, capture_output=True, text=True, timeout=90)
     assert result.returncode == 2, result.stderr
     report = json.loads(result.stdout)
-    assert report['mcp_initialized'] and report['tool_count'] == 53
+    assert report['mcp_initialized'] and report['tool_count'] == 56
     assert report['connection']['connected'] is False and report['viewer_input_sent'] is False
     assert not (root / 'isolated state/runtime/session-settings.xml').exists()
     print(json.dumps({'source_install': 'passed', 'generated_config': 'passed',

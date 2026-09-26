@@ -1,4 +1,5 @@
 import asyncio
+import json
 from pathlib import Path
 import sys
 
@@ -87,7 +88,11 @@ def test_real_mcp_stdio_handshake_offline(tmp_path):
             assert session.server_info.name == "firestorm-mcp"
             assert session.protocol_version == "2026-07-28"
             listed = await session.list_tools()
-            assert len(listed.tools) == 53
+            assert len(listed.tools) == 56
+            guide = await session.call_tool("ui_task", {})
+            assert not guide.is_error
+            task_result = json.loads(guide.content[0].text)
+            assert len(task_result["tasks"]) == 6 and task_result["live_contacted"] is False
             response = await session.call_tool("asset_inspect", {"filename": str(FIXTURE.resolve())})
             assert not response.is_error
             assert '"declared_triangles": 12' in response.content[0].text
