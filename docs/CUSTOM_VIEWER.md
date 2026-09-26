@@ -74,6 +74,10 @@ first test. The new profile starts without the normal viewer's saved login.
 
 ## Upgrade and acceptance
 
+The first build has now passed [live script and 17-prim linkset acceptance](BUILDER_VALIDATION.md)
+on Windows. That record distinguishes completed checks from the broader matrix
+below, which must be revisited for new builds.
+
 For a newer release, create a separate source checkout at the chosen revision.
 Run the integration dry-run, inspect the diff, then apply. An anchor mismatch is
 a porting task; do not force a patch into an unfamiliar layout. Keep the API

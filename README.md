@@ -10,8 +10,9 @@ This checkout extends [AochiToxx/firestorm-mcp](https://github.com/AochiToxx/fir
 with builder capability checks, measured viewer latency, and registered external-script
 editing with conflict detection and backups. See [research and capability map](docs/BUILDER_RESEARCH.md)
 and [script editing](docs/SCRIPT_EDITING.md). The read-only [native object/face hook](viewer-extension/README.md)
-has been compiled into a separate development viewer and passed startup API
-checks. In-world link/face accuracy still needs validation.
+has been compiled into a separate development viewer. Live Windows checks passed
+script compile/error/recovery and a 17-prim, 28-face linkset comparison against
+LSL. See [the acceptance record and remaining scope](docs/BUILDER_VALIDATION.md).
 The downloads below are upstream releases and do not contain these local additions.
 Advanced native features use a [separate development viewer](docs/CUSTOM_VIEWER.md)
 with its own installation and settings profile. Official updates do not upgrade

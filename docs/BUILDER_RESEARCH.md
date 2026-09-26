@@ -32,8 +32,11 @@ own `FirestormMCP` profile. At its login screen, the three native operations wer
 discovered. Ten empty-selection MCP calls had a median **83.713 ms**; null-object
 linkset and face requests returned the expected errors. Twenty bridge pings had
 a median **85.472 ms**. These are different runtime conditions, not a controlled
-speed comparison with the stock session. No in-world link/face acceptance or
-script compile/save test has yet passed.
+speed comparison with the stock session. Subsequent [live acceptance](BUILDER_VALIDATION.md)
+passed script compile/error/correction/save and a 17-prim, 28-face comparison
+against LSL, including a selected-face check. Ten populated linkset reads had
+a median 50.85 ms. The acceptance record also documents a broad UI-query bridge
+failure and the cases that remain untested.
 
 ## Capability map
 
@@ -44,10 +47,10 @@ script compile/save test has yet passed.
 | Nearby prims | `LLAgent.getNearbyObjectsList` | Loaded objects only; does not return complete properties or linksets |
 | Movement, touch, camera, animation | `LLAgent` operations | Dispatched is not proof of simulator completion |
 | UI state and actions | `LLWindow`, `UI`, `LLFloaterReg` | UI fallback; path and visibility must be verified |
-| Read/edit scripts | New `script_sessions`, `script_read`, `script_write`; Firestorm External Edit file watcher | Script must be open and explicitly registered. Readback is local-file evidence. No compile acknowledgement yet |
-| Selected objects/faces | Compiled `FSMCPBuilder.getSelection` hook | Empty-selection startup check passed; populated in-world selection still unverified |
-| Link numbers | Compiled `FSMCPBuilder.getLinkset` hook | Missing-object check passed; uses cached child order; completeness and server numbering remain unverified |
-| Texture-entry face data | Compiled `FSMCPBuilder.getFaces` hook | Missing-object check passed; real prim/mesh faces unverified; not triangle indices or resolved PBR assets |
+| Read/edit scripts | New `script_sessions`, `script_read`, `script_write`; Firestorm External Edit file watcher | Live error/correction/save/reopen passed. Script must be open and registered; no native compile acknowledgement |
+| Selected objects/faces | Compiled `FSMCPBuilder.getSelection` hook | Empty and populated selection checked; one selected child face matched the Build panel |
+| Link numbers | Compiled `FSMCPBuilder.getLinkset` hook | All 17 link/UUID pairs matched LSL in one linkset. Cached order is not a per-call completeness/server guarantee |
+| Texture-entry face data | Compiled `FSMCPBuilder.getFaces` hook | 28 faces across 17 prims matched LSL side counts; one legacy texture-value spot check passed. Not triangle indices or resolved PBR assets |
 | Object inventory / script by UUID | Native asynchronous inventory + asset API still needed | Must enforce normal viewer permissions and wait for callbacks |
 | Compile/save results, reset/start/stop | Native script lifecycle API still needed | Must return completion/job IDs and diagnostics, not infer success from a button click |
 | Object transforms/material writes | Native validated write API still needed | Require object UUID, expected state and readback; no blanket arbitrary C++ execution |
@@ -80,7 +83,12 @@ The stock sidecar remains useful: `builder_selection_summary` reads only a
 visible Build panel's displayed link/face label, and `viewer_runtime_identity`
 fingerprints the executable on disk. Neither is native object access or injection.
 
-Validate a synthetic unlinked prim, a multi-prim linkset, selected faces, mesh material slots and attachment roots in the compiled viewer. Compare link numbers and face counts against an owned in-world script. Then add permission-aware object inventory, script source retrieval, save/compile jobs and diagnostics. Only after that should direct transform/material/script-state writes be added. The current package is a working foundation, not full viewer coverage.
+Extend the completed multi-prim linkset and selected-face acceptance to unlinked
+prims, systematic primitive/mesh coverage, attachment roots and changing or
+partially loaded linksets. Add permission-aware object inventory, script source
+retrieval, save/compile jobs and diagnostics. Direct transform/material/script-state
+writes should follow with independent readback. The current package is a working
+foundation, not full viewer coverage.
 
 ## Runtime injection alternative
 

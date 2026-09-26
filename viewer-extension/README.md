@@ -5,8 +5,11 @@
 This source was **compiled successfully on Windows** against the pinned release
 below. The separate viewer started and passed real MCP checks: all three
 operations discovered, ten empty-selection reads, and missing-object errors for
-linkset/face lookups. In-world link numbers, actual faces and attachments remain
-unverified. Stock Firestorm does not have these APIs.
+linkset/face lookups. Subsequent live checks matched all 17 link/UUID pairs and
+28 face counts against LSL in one owned linkset, plus a selected-face UI check.
+See [the acceptance record and remaining cases](../docs/BUILDER_VALIDATION.md).
+Attachments and unlinked numbering remain unverified. Stock Firestorm does not
+have these APIs.
 
 Apply to a separate Firestorm source checkout, never an installed binary:
 
@@ -32,11 +35,11 @@ The hook runs on the viewer event thread, reads cached state, and performs no
 network requests, inventory mutations, script saves or object changes. Missing
 objects return errors. Missing names remain undefined. Faces are texture-entry
 indices, not mesh triangle indices; serialized texture entries are not resolved
-PBR materials. Link numbers follow Firestorm's current child order with explicit
-flags that complete simulator agreement has not been established.
+PBR materials. Link numbers follow Firestorm's current child order. Explicit
+flags still report that completeness and simulator agreement are not verified
+by each call; one successful independent fixture does not change that contract.
 
-Required acceptance: build the viewer; discover the three APIs through MCP;
-compare unlinked/root/child numbering against LSL; inspect multi-face prims and
-mesh slots; check attachments, unloaded/deleted objects and partial properties;
-verify calls remain bounded and do not alter selection. No native acceptance
-result is implied by Python tests.
+Remaining acceptance includes unlinked numbering, systematic primitive/mesh
+coverage, attachments, unloaded/deleted objects, partial properties and permission
+limits. Repeat the completed root/child/face checks when adopting new viewer
+revisions. No native acceptance result is implied by Python tests.

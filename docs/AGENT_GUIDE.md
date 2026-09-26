@@ -65,6 +65,11 @@ Use read-only inspection to establish ownership of an existing panel. `floater_o
 
 `max_depth:1` includes the root and immediate children. Filtering/paging limits returned data, not the viewer's enumeration cost. Reinspect paths after panel changes or human input. A handled event does not prove its intended effect.
 
+Avoid querying the whole `Floater View` or inventory subtree. A live broad query
+with a large inventory produced a malformed roughly 80 MB reply and disconnected
+the bridge. Use exact floater/control subtrees; lowering `limit` or `max_depth`
+does not prevent that failure. See [builder acceptance](BUILDER_VALIDATION.md).
+
 For source selection/commit, tabs, checkbox keys and LOD comparisons, read the [importer procedure](../skills/firestorm-mesh-preview/references/importer.md). It records the tested Home/Return and Space sequences; do not replace missing APIs with unbound keys.
 
 Native pickers require `connection_status.local_platform.native_file_dialogs:true`. Otherwise arrange manual selection and inspect the importer afterward. Check which workflow opened the picker: texture/sound/animation selection can advance toward upload.

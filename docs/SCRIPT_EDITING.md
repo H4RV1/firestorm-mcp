@@ -31,7 +31,10 @@ If a process crashes while holding a file lock, inspect the lock and process
 before explicit local recovery; the tool never steals another writer's lock.
 
 Automated tests exercise Unicode, conflict handling, backup fidelity, stale
-sessions and concurrency boundaries using synthetic files. A live script
-compile/save test has **not** been performed. Do that next with a disposable
-script, including a deliberate syntax error and successful correction, before
-using this workflow for important scripts.
+sessions and concurrency boundaries using synthetic files. Live Windows testing
+also passed inventory/in-object registration, UTF-8 readback, stale-hash rejection,
+backup comparison, a deliberate compiler error, successful correction and save,
+in-world execution, and exact source readback after closing/reopening the editor.
+See [the acceptance record and remaining scope](BUILDER_VALIDATION.md).
+Compiler/save results still require separate observation on every edit; these
+tests do not turn a local file-write response into a compiler acknowledgement.
