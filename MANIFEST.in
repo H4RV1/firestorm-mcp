@@ -4,6 +4,7 @@ include install.py Install.sh Start-FirestormMCP.sh Check-FirestormMCP.sh
 include requirements-lock.txt .gitignore .gitattributes
 recursive-include docs *.md *.json
 recursive-include scripts *.py
+recursive-include viewer-extension *.h *.cpp *.md *.json
 recursive-include skills *.md
 recursive-include tests *.py *.dae
 recursive-include .github *.yml *.md

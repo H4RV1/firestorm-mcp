@@ -25,7 +25,18 @@ def running_viewers():
     return result
 
 
-def session_settings(python, helper, runtime, viewer_dir):
+def editor_command(python, root):
+    python = Path(python)
+    if os.name == "nt" and python.with_name("pythonw.exe").is_file():
+        python = python.with_name("pythonw.exe")
+    values = [str(value).replace("\\", "/") for value in
+              (python, Path(__file__).with_name("script_entry.py").resolve(), root)]
+    if any(any(c in value for c in ('"', "\n", "\r", "\0", "%")) for value in values):
+        raise ValueError("External editor paths must not contain quotes, percent signs or newlines")
+    return f'"{values[0]}" "{values[1]}" --data-dir "{values[2]}" "%s"'
+
+
+def session_settings(python, helper, runtime, viewer_dir, script_editor=False):
     # LLProcess treats backslashes as escapes. Quote forward-slash paths.
     raw_values = [str(p) for p in (python, helper, runtime, viewer_dir)]
     if os.name != "nt" and any("\\" in value for value in raw_values):
@@ -42,10 +53,17 @@ def session_settings(python, helper, runtime, viewer_dir):
     ET.SubElement(value, "string").text = "LLSD"
     ET.SubElement(value, "key").text = "Value"
     ET.SubElement(ET.SubElement(value, "array"), "string").text = command
+    if script_editor:
+        ET.SubElement(settings, "key").text = "ExternalEditor"
+        editor = ET.SubElement(settings, "map")
+        ET.SubElement(editor, "key").text = "Type"
+        ET.SubElement(editor, "string").text = "String"
+        ET.SubElement(editor, "key").text = "Value"
+        ET.SubElement(editor, "string").text = editor_command(python, Path(runtime).parent)
     return ET.tostring(root, encoding="unicode")
 
 
-def launch(viewer: Path, root: Path, login_screen=False, dry_run=False):
+def launch(viewer: Path, root: Path, login_screen=False, dry_run=False, script_editor=False):
     installed = find_viewer(viewer)
     active = running_viewers()
     if active:
@@ -53,7 +71,7 @@ def launch(viewer: Path, root: Path, login_screen=False, dry_run=False):
     runtime = root.expanduser().resolve() / "runtime"
     helper = Path(__file__).with_name("leap_entry.py").resolve(strict=True)
     settings = runtime / "session-settings.xml"
-    xml = session_settings(Path(sys.executable), helper, runtime, installed.resources)
+    xml = session_settings(Path(sys.executable), helper, runtime, installed.resources, script_editor)
     args = [str(installed.executable), "--sessionsettings", str(settings)]
     if login_screen:
         args.extend(["--set", "AutoLogin", "false"])
@@ -83,9 +101,10 @@ def main():
     parser.add_argument("--data-dir", type=Path, default=data_root())
     parser.add_argument("--login-screen", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--script-editor", action="store_true", help="Register External Edit scripts with MCP for this viewer session")
     args = parser.parse_args()
     try:
-        print(json.dumps(launch(args.viewer, args.data_dir, args.login_screen, args.dry_run), indent=2))
+        print(json.dumps(launch(args.viewer, args.data_dir, args.login_screen, args.dry_run, args.script_editor), indent=2))
     except (OSError, ValueError, RuntimeError) as exc:
         parser.exit(1, f"{type(exc).__name__}: {exc}\n")
 

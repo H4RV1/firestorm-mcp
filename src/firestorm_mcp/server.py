@@ -31,6 +31,7 @@ from .client import BridgeClient
 from .protocol import json_default
 from .paths import data_root, viewer_directory
 from .doctor import platform_support
+from .builder_tools import register_builder_tools
 from . import __version__
 
 ROOT = data_root()
@@ -58,6 +59,7 @@ class Tools:
         self.definitions = {}
         self.call_lock = threading.RLock()
         self._register()
+        register_builder_tools(self)
 
     def register(self, description, read_only=False):
         def decorate(fn):

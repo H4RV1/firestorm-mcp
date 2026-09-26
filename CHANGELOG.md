@@ -1,3 +1,19 @@
+# Local builder development (0.3.0a3+builder.1)
+
+- Reuse the upstream LEAP bridge and add ten builder tools, including explicit
+  capability reporting, registered external-script read/write and live latency.
+- Add opt-in session ExternalEditor integration, UTF-8 writes with expected
+  hashes, exact backups, viewer/file identity checks and control-lease checks.
+- Compile the native selection/linkset/face API in a separate viewer. Startup,
+  discovery, empty selection and missing-object errors passed live MCP checks;
+  in-world link/face accuracy is still unverified. Stock viewers remain unsupported.
+- Isolate the development installation and settings profile; record the pinned
+  build baseline and provide portable staging and release-update instructions.
+- Handle Windows Python venv redirectors when resolving the owning viewer.
+- Add read-only Build-panel summaries and executable fingerprints.
+- Document source research, alternative MCP projects and outstanding native
+  script lifecycle/compile-result work. No live script save has been tested.
+
 # Changelog
 
 ## 0.3.0a3 — public alpha (12 September 2026)

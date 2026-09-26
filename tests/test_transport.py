@@ -90,6 +90,22 @@ def respond(outgoing, request, value, correlated=True):
     outgoing.write(encode_frame(request["data"]["reply"], data))
 
 
+def test_script_assertion_requires_same_active_connected_lease(channel, monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr("firestorm_mcp.bridge.parent_viewer", lambda: SimpleNamespace(pid=123))
+    bridge, _, _ = channel
+    with pytest.raises(RuntimeError, match="lease"):
+        bridge.handle({"method": "assert_control", "client_id": "one"})
+    bridge.handle({"method": "acquire", "client_id": "one", "label": "synthetic writer", "seconds": 30})
+    assert bridge.handle({"method": "assert_control", "client_id": "one"}) == {"connected": True, "viewer_pid": 123}
+    with pytest.raises(RuntimeError, match="held by"):
+        bridge.handle({"method": "assert_control", "client_id": "two"})
+    bridge.connected = False
+    with pytest.raises(RuntimeError, match="lease"):
+        bridge.handle({"method": "assert_control", "client_id": "one"})
+    bridge.handle({"method": "release", "client_id": "one"})
+
+
 def test_out_of_order_responses_and_unsolicited_event(channel):
     bridge, incoming, outgoing = channel
     with concurrent.futures.ThreadPoolExecutor() as pool:
