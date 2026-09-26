@@ -65,7 +65,7 @@ Automated tests use simulated viewers. They do not certify live desktop control.
 | --- | --- |
 | Export inspection | Read COLLADA, glTF, GLB and image metadata, hashes, dimensions and references. |
 | Mesh previews | Open Local Mesh or the model importer; inspect LODs, physics, warnings, dimensions and displayed fees; adjust the preview camera. |
-| Viewer UI | Find and inspect controls, click registered buttons, enter text, send targeted keys and invoke menus. Windows supports recognized native file pickers. |
+| Viewer UI | Search an installed control map, retrieve task guides, batch exact readback, click buttons, enter text, send targeted keys and invoke menus. Windows supports recognized native file pickers. |
 | Camera and images | Set the world camera, capture images and orbit views, save manifests and compare pixels. |
 | Avatar and scene | Read position, start/poll/stop walking, query nearby objects and search an inventory folder. |
 | Settings and events | Read/change viewer settings, subscribe to events and coordinate agents through control leases. |

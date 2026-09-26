@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='firestorm-mcp-wheel-') as temporary:
                             capture_output=True, text=True, timeout=90)
     report = json.loads(result.stdout)
     assert result.returncode == 2, (result.returncode, result.stderr)
-    assert report['mcp_initialized'] and report['tool_count'] == 72
+    assert report['mcp_initialized'] and report['tool_count'] == 75
     assert report['connection']['connected'] is False
     assert report['lease_acquired'] is False and report['viewer_input_sent'] is False
     check = subprocess.run([str(python), '-c',
@@ -36,5 +36,5 @@ with tempfile.TemporaryDirectory(prefix='firestorm-mcp-wheel-') as temporary:
         '"asset_tools.py", "asset_gateway.py", "asset_journal.py", "asset_contract.py"))'],
         cwd=temp, env=env, capture_output=True, text=True)
     assert check.returncode == 0, check.stderr
-    print(json.dumps({'wheel_install': 'passed', 'offline_mcp': 'passed', 'workflow_tools': 72,
+    print(json.dumps({'wheel_install': 'passed', 'offline_mcp': 'passed', 'workflow_tools': 75,
                       'viewer_started': False, 'packaged_leap_entry': 'present', 'offline_install': bool(args.wheelhouse)}))

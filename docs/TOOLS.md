@@ -19,7 +19,7 @@ Generated from the current workflow definitions and historical Firestorm 7.2.4.8
 | `events_subscribe` | Subscribe to a named viewer event stream, such as StartupState or LLAutopilot. Events are bounded and remain local until read. |
 | `events_unsubscribe` | Stop subscribing to a viewer event stream. |
 | `events_read` | Read subscribed viewer events after a cursor. The dropped flag identifies buffer overflow; do not infer missing events. |
-| `ui_find` | Search paths or basenames, case-insensitively, within a narrow under path. max_depth=1 includes root and children. Follow next_offset for more results; each page still enumerates the requested subtree. |
+| `ui_find` | Search paths or basenames within a narrow live subtree. Whole-view/Floater View and recursive scans are rejected; prefer offline ui_map/ui_task then ui_read. max_depth and paging filter after enumeration, not its cost. |
 | `ui_get_value` | Read the value of a specific discovered UI control. Use targeted paths to avoid unrelated chat or private fields. |
 | `ui_click` | Click a visible, enabled control. A registered floater invokes a unique button callback; otherwise uses coordinates. observe_path returns before/after state. Verify the effect from readback. |
 | `ui_set_text` | Replace text in a discovered edit control using viewer input, then read back its value. Does not press Enter. |
