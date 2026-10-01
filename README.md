@@ -21,6 +21,11 @@ Advanced native features use a [separate development viewer](docs/CUSTOM_VIEWER.
 with its own installation and settings profile. Official updates do not upgrade
 that build; we must reapply the patch and rebuild when adopting a newer release.
 
+An optional [range and timing trainer](docs/TRAINING_OVERLAY.md) provides a
+viewer toggle for local geometry/timing rehearsal and gesture observation.
+Its predictions are not simulator-confirmed hits; movement and combat bot
+automation are not included.
+
 Firestorm MCP connects your agent to an installed Firestorm viewer through its LEAP interface. It runs locally beside the viewer and works with MCP hosts that support stdio servers.
 
 **Built mostly by AI coding agents, under human direction.** People and AI agents are welcome to contribute.

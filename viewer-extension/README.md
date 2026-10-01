@@ -1,5 +1,9 @@
 # Experimental native builder extension
 
+The optional [range and timing trainer](../docs/TRAINING_OVERLAY.md) adds a
+manual overlay, gesture observation and local prediction API to a separate
+development viewer. It does not move avatars, attack or confirm simulator hits.
+
 The additional `FSMCPAssets` source in this directory has its own
 [contract](../docs/ASSET_API.md), [build record](assets-build-baseline.json) and
 [pending live acceptance](../docs/ASSET_ACCEPTANCE.md). The startup checks below

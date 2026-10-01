@@ -25,7 +25,8 @@ for path in sorted(root.rglob('*')):
     relative = path.relative_to(root)
     if '__pycache__' in relative.parts or any(part.endswith('.egg-info') for part in relative.parts):
         continue
-    if str(relative) not in root_names and not (relative.parts[0] in trees and path.suffix in suffixes):
+    native_xui = relative.parts[0] == 'viewer-extension' and path.suffix == '.xml'
+    if str(relative) not in root_names and not native_xui and not (relative.parts[0] in trees and path.suffix in suffixes):
         continue
     if path.is_symlink():
         raise ValueError(f'Symlink cannot enter a release: {relative}')

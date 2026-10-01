@@ -33,7 +33,8 @@ def main():
         return match.group(1).strip()
     channel = setting("VIEWER_CHANNEL")
     profiles = {"Firestorm-MCP-Development": "FirestormMCP",
-                "Firestorm-MCP-Assets-Development": "FirestormMCPAssets"}
+                "Firestorm-MCP-Assets-Development": "FirestormMCPAssets",
+                "Firestorm-MCP-Training-Development": "FirestormMCPTraining"}
     if channel not in profiles:
         raise ValueError("Expected a separate MCP development channel")
     constants = (checkout / "indra/llcommon/indra_constants.h").read_text()
