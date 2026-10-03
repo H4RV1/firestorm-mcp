@@ -1662,6 +1662,63 @@
     }
   },
   {
+    "name": "material_face_apply",
+    "description": "Apply one material_face_plan under a lease after native session/permissions/texture-entry revalidation. The plan is consumed before dispatch. Returns local preview plus dispatched status; reread object_faces and verify simulator/rendered effects independently. Never blindly replay.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "plan_id": {
+          "title": "Plan Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id"
+      ],
+      "title": "material_face_applyArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "material_face_plan",
+    "description": "Prepare an explicit prim/face surface edit without changing the world. Supported changes: color [r,g,b,a] 0..1, scale [u,v] -100..100, offset [u,v] -1..1, rotation radians +/-2pi, glow 0..1, fullbright boolean. Returns before/preview and a 30-second single-use plan. PBR, textures, normal/specular assets remain unchanged.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "face": {
+          "title": "Face",
+          "type": "integer"
+        },
+        "changes": {
+          "additionalProperties": true,
+          "title": "Changes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "object_id",
+        "face",
+        "changes"
+      ],
+      "title": "material_face_planArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
     "name": "mesh_preview_camera",
     "description": "Drag the mesh uploader's preview camera; world camera stays unchanged. Fractions are bounded to -0.45..0.45 of the inspected rectangle. Positive vertical zooms in; zoom needs horizontal=0. Capture to verify. No exact pose readback or restoration.",
     "inputSchema": {
@@ -1794,6 +1851,56 @@
     }
   },
   {
+    "name": "object_link_apply",
+    "description": "Consume an object_link_plan once under a control lease. Refuses changed/expired selection or session. Uses the viewer's normal link/unlink action, including its confirmation preferences. Returns dispatch only; inspect each affected UUID/root afterward. Never blindly repeat after timeout.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "plan_id": {
+          "title": "Plan Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id"
+      ],
+      "title": "object_link_applyArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "object_link_plan",
+    "description": "Prepare a single-use link or unlink plan for the current owned modifiable selection. Returns exact selection, candidate root and 30-second expiry. No world change. Requires explicit task authority before commit.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "link",
+            "unlink"
+          ],
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "object_link_planArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
     "name": "object_linkset",
     "description": "Read a loaded object's linkset using native FSMCPBuilder. Link numbers follow the viewer's current child order; simulator completeness is not guaranteed.",
     "inputSchema": {
@@ -1813,6 +1920,87 @@
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "object_search",
+    "description": "Search loaded prims with viewer-side distance, ownership, root and result limits. Names use selection properties or an existing Area Search cache; query excludes unknown names. next_offset is a changing cache index, not a snapshot. No selection changes or property fetches.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "distance": {
+          "default": 32,
+          "title": "Distance",
+          "type": "number"
+        },
+        "owned_only": {
+          "default": false,
+          "title": "Owned Only",
+          "type": "boolean"
+        },
+        "roots_only": {
+          "default": true,
+          "title": "Roots Only",
+          "type": "boolean"
+        },
+        "query": {
+          "default": "",
+          "title": "Query",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "title": "Offset",
+          "type": "integer"
+        }
+      },
+      "title": "object_searchArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "object_select",
+    "description": "Select 1-32 explicit loaded owned modifiable root UUIDs. Requires lease and exact prior object_selection.selection_identity, including order. Reinspect selection/properties before planning link/unlink. Does not link or change materials.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "object_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Object Ids",
+          "type": "array"
+        },
+        "expected_selection": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Expected Selection",
+          "type": "array"
+        }
+      },
+      "required": [
+        "object_ids",
+        "expected_selection"
+      ],
+      "title": "object_selectArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
       "openWorldHint": true
     }
   },
@@ -2347,7 +2535,7 @@
   },
   {
     "name": "ui_read",
-    "description": "Read 1-20 exact UI paths or ui_map IDs in one request, using targeted getInfo calls and a total viewer-wait budget. No tree scans or input. Values are opt-in, hidden values suppressed and long values truncated. Does not distinguish duplicate editor instances.",
+    "description": "Read 1-20 exact UI paths or ui_map IDs. FSMCPUI batches them in one bounded native request and rejects duplicate instances; stock fallback uses sequential getInfo with a viewer-wait budget. No tree scans or input. Values are opt-in; hidden/oversized values are suppressed.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2378,6 +2566,39 @@
         "controls"
       ],
       "title": "ui_readArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ui_rows",
+    "description": "Read visible compiler/error or other scroll-list rows by exact path through FSMCPUI. At most 50 rows, 8 columns, 1024 bytes per cell and 32 KiB total. Ambiguous instances rejected. UI rows alone are not simulator execution evidence.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "offset": {
+          "default": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "limit": {
+          "default": 20,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "ui_rowsArguments",
       "type": "object"
     },
     "annotations": {
@@ -2487,6 +2708,44 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
+    }
+  },
+  {
+    "name": "ui_tree",
+    "description": "Read a bounded live subtree: native traversal stops at 2048 nodes, 8 ms, 64 KiB of paths, or limit. max_depth<=8. No stock unbounded fallback. Follow next_offset or narrow under when the budget is exhausted; pagination is not a snapshot.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "under": {
+          "title": "Under",
+          "type": "string"
+        },
+        "limit": {
+          "default": 100,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "max_depth": {
+          "default": 2,
+          "title": "Max Depth",
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "title": "Offset",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "under"
+      ],
+      "title": "ui_treeArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
     }
   },
   {
@@ -6811,6 +7070,38 @@
       "additionalProperties": false,
       "properties": {},
       "title": "viewer_runtime_identityArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "workflow_read",
+    "description": "Execute 1-16 explicit semantic read calls in one MCP request. Prevalidates the entire plan, returns per-step timing, stops on the first error or budget exhaustion between calls, and never performs input, opens panels, retries or acquires control. Use for nearby/selection/faces/script/UI inspection after acquiring your lease.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "calls": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Calls",
+          "type": "array"
+        },
+        "timeout": {
+          "default": 20,
+          "title": "Timeout",
+          "type": "number"
+        }
+      },
+      "required": [
+        "calls"
+      ],
+      "title": "workflow_readArguments",
       "type": "object"
     },
     "annotations": {

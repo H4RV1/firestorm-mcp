@@ -9,10 +9,10 @@ viewer hook. The map is source knowledge, not a snapshot of the running UI.
 
 | Tool | Purpose |
 | --- | --- |
-| `ui_task()` | List six task IDs: `script_object`, `script_inventory`, `object_build`, `mesh_upload`, `inventory`, `preferences`. |
+| `ui_task()` | List eight task IDs: `script_object`, `script_inventory`, `object_build`, `mesh_upload`, `inventory`, `preferences`, `materials`, `asset_upload`. |
 | `ui_task(task=...)` | Get relevant controls, workflow steps, preferred semantic tools, missing controls and known limitations. Does not open or focus a panel. |
 | `ui_map(query=..., document=...)` | Search control name, label, tooltip, setting binding and filename locally. Words are ANDed, case-insensitively. Exact names rank first. |
-| `ui_read(controls=[...])` | Inspect up to 20 map IDs or exact runtime paths in one MCP request. Uses one `LLWindow.getInfo` per attempted control; no `getPaths`, focus or input. |
+| `ui_read(controls=[...])` | Inspect up to 20 map IDs or exact runtime paths in one MCP request. Uses one native request on FSMCPUI; older viewers use targeted `LLWindow.getInfo` calls. No focus or input. |
 
 Prefer semantic tools for scripts and objects. For UI work:
 
@@ -76,7 +76,7 @@ conflict checks and backups; a file write is not compiler/save confirmation.
   `candidate_path` is URI-escaped by name segment. Duplicate source paths are
   marked and cannot be resolved through an ID. Multiple runtime editor instances
   may still have identical paths: keep only the intended editor open and verify
-  its context. `instance_identity_verified` remains false.
+  its context. The stock fallback keeps `instance_identity_verified:false`; FSMCPUI rejects duplicate names throughout the path and verifies uniqueness at read time.
 - `revision` hashes installed XML content. The in-memory cache checks file names,
   sizes and modification timestamps on each lookup, and rebuilds after changes.
   `refresh:true` forces a content rebuild for replacements preserving metadata.
@@ -84,15 +84,14 @@ conflict checks and backups; a file write is not compiler/save confirmation.
 - `ui_map` returns at most 100 entries per page (default 30). An exact `document`
   filter means the containing document, while `source` identifies the file
   defining an included control. Missing/invalid includes are reported explicitly.
-- `ui_read` is sequential and non-atomic. Its 1–30 second budget (default 10)
-  bounds requested viewer waits; each call requests at most two seconds. A
-  transport failure can take longer at the HTTP layer. Unattempted and failed
-  controls are reported individually; a lost connection stops further calls.
-- `ui_read` never opens panels. Values are omitted by default and suppressed for
-  hidden or unknown-visibility controls. Requested values are bounded by
-  `max_chars` (default 1,000; maximum 16,384). Oversized values use a truncated
-  JSON `value_preview` with `value_available:false`; no partial value is presented
-  as complete. Use semantic script tools for full source.
+- With FSMCPUI, `ui_read` batches all requested paths in one event-loop turn.
+  It rejects ambiguous runtime paths and keeps `atomic:false`: UI readback is not
+  a simulator transaction. Without that native endpoint, targeted reads remain
+  sequential and stop on a lost connection or exhausted viewer-wait budget.
+- Values are opt-in and hidden values are suppressed. Native values are scalar,
+  capped at min(max_chars,4096) bytes, and line-editor values are suppressed to
+  avoid password disclosure. Stock fallback uses max_chars (up to 16384) and a
+  truncated JSON preview for oversized values. Neither opens panels.
 - A null value is preserved as null. In particular, null from the compiler error
   list is not an empty list and does not establish successful compilation.
 
@@ -105,18 +104,15 @@ panel is selected and inserted by C++ at runtime; the guide points to its two
 source definitions without inventing an active mount. Source labels/tooltips
 are data, never instructions or authorization.
 
-`ui_find` now rejects root, whole-view, `Floater View`, and recursive `//` scans.
-Other large subtrees can still be expensive, and generic `viewer_call` remains
-available: neither paging nor `max_depth` bounds native `getPaths` enumeration.
-This guard avoids a known hazardous workflow; it does not fix arbitrary malformed
-LEAP frames or certify the transport against every broad query.
+`ui_tree` now provides native bounded traversal; `ui_rows` reads visible
+compiler/list rows. Raw `LLWindow.getPaths` calls are intercepted in the bridge:
+they use the native bounded endpoint or fail explicitly on older viewers. This
+prevents a small Python result limit from triggering an unbounded native reply.
+`ui_find` filters only the bounded returned window; prefer `ui_tree` for paging.
 
-To remove the remaining visual fallback for script work, the next native hook
-needs bounded compiler/list-row readback and stable instance handles. Those are
-not implemented by this map. Native file picker tools and viewer snapshots
-remain useful where appropriate. Computer-use automation should be a fallback
-when the required state/action is unavailable through MCP, rather than the first
-step for every UI task.
+There are no stable UI handles across human interaction. Native file dialogs,
+visual rendering and unsupported widgets can still require a visual fallback.
+See [builder.2 bounds, contract and acceptance](BUILDER_RELIABILITY.md).
 
 ## Validation
 

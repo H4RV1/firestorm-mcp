@@ -29,9 +29,9 @@ TASKS = {
                   "Use script_sessions, script_read and script_write with a lease and the previous source hash.",
                   "Observe compiler/save completion and verify the intended in-world result before declaring success."],
         "limits": ["Stock getInfo/getValue does not expose compiler scroll-list rows. A null errors value is not successful compilation.",
-                   "Multiple editor instances can share the same path; instance identity is not verified.",
+                   "FSMCPUI rejects duplicate runtime paths; stock fallback cannot distinguish editor instances.",
                    "The preprocessor editor may add controls not present in the base script panel."],
-        "preferred_tools": ["script_sessions", "script_read", "script_write"],
+        "preferred_tools": ["script_sessions", "script_read", "script_write", "ui_rows"],
     },
     "script_inventory": {
         "title": "Edit an inventory script",
@@ -42,8 +42,8 @@ TASKS = {
                   "Click the live-verified External Edit control, then use script_sessions/read/write.",
                   "Check the compiler and save status; an inventory script does not execute until placed in-world."],
         "limits": ["Keep only the intended editor open; source paths do not distinguish keyed instances.",
-                   "Compiler rows require separate evidence; null is not success."],
-        "preferred_tools": ["script_sessions", "script_read", "script_write"],
+                   "Use native ui_rows for visible compiler messages; null getValue is not success."],
+        "preferred_tools": ["script_sessions", "script_read", "script_write", "ui_rows"],
     },
     "object_build": {
         "title": "Inspect selected objects, links, faces and contents",
@@ -90,6 +90,36 @@ TASKS = {
                   "Verify the live control, apply only the authorized change and read back its state."],
         "limits": ["Custom skins, translations and C++ panel factories can change runtime hierarchy.", "Source control_name identifies a setting binding, not permission to change it."],
         "preferred_tools": ["viewer_api_inspect", "viewer_call"],
+    },
+    "materials": {
+        "title": "Inspect faces and edit surface properties",
+        "keywords": "material pbr texture color uv scale offset rotation glow fullbright",
+        "documents": ["panel_fs_tools_texture.xml", "panel_tools_texture.xml"],
+        "controls": ["tabs_material_type", "base_color_picker", "base_color_tint_picker", "emissive_color_tint_picker",
+                     "gltfTextureScaleU_All", "gltfTextureScaleV_All", "gltfTextureOffsetU_All", "gltfTextureOffsetV_All"],
+        "steps": ["Use object_selection/object_faces to identify the prim UUID and zero-based face index.",
+                  "For legacy color, UV, glow or fullbright: prepare material_face_plan, inspect before/preview, then apply the authorized plan once.",
+                  "Read object_faces again and distinguish local texture-entry state from simulator/rendered evidence.",
+                  "For PBR or asset assignments, find the active Texture panel mount with bounded ui_tree and verify controls with ui_read."],
+        "limits": ["Native surface plans do not edit PBR assets, diffuse texture IDs or legacy normal/specular assets.",
+                   "Texture panels are mounted dynamically; source map paths are not assumed to be live.",
+                   "Script animation can invalidate a prepared face plan; do not overwrite a changed face blindly."],
+        "preferred_tools": ["object_selection", "object_faces", "material_face_plan", "material_face_apply", "ui_tree", "ui_read"],
+    },
+    "asset_upload": {
+        "title": "Prepare and upload builder assets through the viewer",
+        "keywords": "asset upload sound ogg notecard mesh texture animation inventory folder fee",
+        "documents": ["floater_model_preview.xml", "floater_image_preview.xml", "floater_animation_preview.xml"],
+        "controls": ["ok_btn", "calculate_btn", "cancel_btn", "description_form", "name_form", "upload_button"],
+        "steps": ["Inspect the source asset locally; negotiate assets_status before choosing a native upload operation.",
+                  "For sound/notecards, use the assets_* asynchronous contract with an explicit request ID, expected session and bounded lease.",
+                  "Poll assets_job and reconcile uncertain requests; never repeat an upload merely because a reply was lost.",
+                  "For mesh, inspect the viewer preview, LODs/physics and current displayed fee before an authorized upload.",
+                  "Texture/animation uploads use their viewer dialogs; native unattended upload is not implemented for those asset types."],
+        "limits": ["A prepared asset, UI quote or submitted job is not a confirmed inventory asset.",
+                   "Native sounds enforce a confirmed zero fee; spending requires separate user authority and is not enabled by these tools.",
+                   "Native file pickers are outside the XUI map."],
+        "preferred_tools": ["asset_inspect", "assets_status", "assets_upload_sound", "assets_create_notecard", "assets_job", "mesh_upload_status", "native_file_dialogs"],
     },
 }
 
@@ -254,6 +284,27 @@ def read_controls(index, client, controls, include_values=False, max_chars=1000,
     if not 1 <= max_chars <= 16384 or not 1 <= timeout <= 30:
         raise ValueError("Use max_chars 1-16384 and timeout 1-30 seconds")
     targets = index.resolve(controls)  # Validate every selector before contacting viewer.
+    if any(op["name"] == "getControls" for op in getattr(client, "apis", {}).get("FSMCPUI", {}).get("ops", [])):
+        from .ui_native import call_ui
+        result = call_ui(client, "getControls", {"paths": [path for _, path in targets],
+            "include_values": include_values, "max_bytes": min(max_chars, 4096)}, timeout)
+        entries = result.get("controls")
+        if not isinstance(entries, list) or len(entries) != len(targets):
+            raise ValueError("Incomplete native control response")
+        observations = []
+        for (control, path), info in zip(targets, entries):
+            if info.get("path") != path:
+                raise ValueError("Native control path does not match the requested target")
+            item = {"control": control, "path": path, "path_resolved": not bool(info.get("error")),
+                    "info": {k: v for k, v in info.items() if k not in {"value", "value_available", "value_reason", "value_truncated"}}}
+            for key in ("error", "value_available", "value_reason", "value_truncated"):
+                if key in info: item[key] = info[key]
+            if include_values and info.get("visible_chain") is True and info.get("value_available") is True:
+                item["value"] = info.get("value")
+            observations.append(item)
+        return {"controls": observations, "evidence": "native_bounded_ui_readback", "atomic": False,
+                "same_event_loop_turn": True, "instance_identity_verified": True, "selection_changed": False,
+                "viewer_round_trips": 1}
     deadline = time.monotonic() + timeout
     results = []
     disconnected = False
@@ -302,6 +353,6 @@ def register_ui_map_tools(tools):
     def ui_task(task: str | None = None):
         return index.task(task)
 
-    @tools.register("Read 1-20 exact UI paths or ui_map IDs in one request, using targeted getInfo calls and a total viewer-wait budget. No tree scans or input. Values are opt-in, hidden values suppressed and long values truncated. Does not distinguish duplicate editor instances.", True)
+    @tools.register("Read 1-20 exact UI paths or ui_map IDs. FSMCPUI batches them in one bounded native request and rejects duplicate instances; stock fallback uses sequential getInfo with a viewer-wait budget. No tree scans or input. Values are opt-in; hidden/oversized values are suppressed.", True)
     def ui_read(controls: list[str], include_values: bool = False, max_chars: int = 1000, timeout: float = 10):
         return read_controls(index, tools.client, controls, include_values, max_chars, timeout)

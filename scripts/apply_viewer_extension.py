@@ -15,8 +15,8 @@ def apply(checkout, dry_run=False, profile_name=None):
     cmake = newview / "CMakeLists.txt"
     app = newview / "llappviewer.cpp"
     anchors = {
-        cmake: [("    llagentlistener.cpp\n", "    fsmcpbuilder.cpp\n    llagentlistener.cpp\n"),
-                ("    llagentlistener.h\n", "    fsmcpbuilder.h\n    llagentlistener.h\n")],
+        cmake: [("    llagentlistener.cpp\n", "    fsmcpbuilder.cpp\n    fsmcpui.cpp\n    llagentlistener.cpp\n"),
+                ("    llagentlistener.h\n", "    fsmcpbuilder.h\n    fsmcpui.h\n    llagentlistener.h\n")],
         app: [('#include "llleap.h"\n', '#include "llleap.h"\n#include "fsmcpbuilder.h"\n'),
               ("    {\n        // Iterate over --leap command-line options.",
                "    initFSMCPBuilder();\n\n    {\n        // Iterate over --leap command-line options.")],
@@ -36,7 +36,7 @@ def apply(checkout, dry_run=False, profile_name=None):
                 raise ValueError(f"Expected one integration anchor in {path.name}; source version needs review")
             text = text.replace(anchor, replacement, 1)
         edits[path] = text
-    for name in ("fsmcpbuilder.cpp", "fsmcpbuilder.h"):
+    for name in ("fsmcpbuilder.cpp", "fsmcpbuilder.h", "fsmcpui.cpp", "fsmcpui.h"):
         destination = newview / name
         if destination.exists():
             raise ValueError(f"Refusing to overwrite {destination}")

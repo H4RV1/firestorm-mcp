@@ -10,6 +10,7 @@ from typing import BinaryIO
 import llsd
 
 MAX_FRAME = 128 * 1024 * 1024
+MAX_DECODE_FRAME = 16 * 1024 * 1024
 
 
 class FrameDecodeError(ValueError):
@@ -60,7 +61,17 @@ def read_frame(stream: BinaryIO) -> dict:
         prefix += char
     if not prefix or not 0 < int(prefix) <= MAX_FRAME:
         raise ValueError(f"LEAP frame length outside bounds: {prefix.decode('ascii')}")
-    body = read_exact(stream, int(prefix))
+    size = int(prefix)
+    if size > MAX_DECODE_FRAME:
+        # Only a valid length prefix is recoverable. Never scan arbitrary payload
+        # bytes for a guessed boundary, which could correlate a reply incorrectly.
+        remaining = size
+        while remaining:
+            count = min(remaining, 65536)
+            read_exact(stream, count)
+            remaining -= count
+        raise FrameDecodeError("Oversized viewer reply consumed without decoding; result is unknown", b"")
+    body = read_exact(stream, size)
     repaired = 0
     while True:
         try:

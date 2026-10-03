@@ -1,0 +1,6 @@
+interface:
+  display_name: "Firestorm Builder"
+  short_description: "Fast, bounded Firestorm builder workflows"
+  default_prompt: "Use $firestorm-builder to inspect nearby objects and complete my authorized builder task through MCP."
+policy:
+  allow_implicit_invocation: true

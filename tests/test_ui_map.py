@@ -29,7 +29,7 @@ def test_task_map_expands_factory_without_viewer_contact(viewer, tmp_path):
     tools = Tools(tmp_path / "state", viewer)
     tools.client.call = lambda *a, **kw: pytest.fail("Offline map must not contact viewer")
     tools.client.rpc = tools.client.call
-    assert len(tools.call("ui_task", {})["tasks"]) == 6
+    assert len(tools.call("ui_task", {})["tasks"]) == 8
     task = tools.call("ui_task", {"task": "script_object"})
     edit = next(e for e in task["controls"] if e["name"] == "edit_btn_2")
     assert edit["source"] == "panel_script_ed.xml"

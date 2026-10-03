@@ -17,6 +17,8 @@ class AssetGateway:
         self.bridge, self.journal = bridge, journal
         self.stages = {}
         self.jobs = {}
+        self.synced_lease = None
+        self.synced_until = 0
 
     def native(self, op, args):
         value = self.bridge.call('FSMCPAssets', op, args, expect_reply=True, timeout=5)
@@ -28,7 +30,14 @@ class AssetGateway:
         b = self.bridge
         seconds = max(0, b.lease_until - time.monotonic())
         lease = str(uuid.uuid5(uuid.NAMESPACE_URL, b.generation + str(b.owner))) if b.owner and seconds else ''
-        self.native('lease', {'leaseId': lease, 'seconds': seconds})
+        # The native lease remains authoritative on every execution. Avoid an
+        # extra viewer round trip for every 48 KiB staging chunk and job poll.
+        now = time.monotonic()
+        if lease != self.synced_lease or self.synced_until - now < 30 or b.lease_until > self.synced_until + 1:
+            result = self.native('lease', {'leaseId': lease, 'seconds': seconds})
+            if result.get('ok') is False:
+                raise AssetError('lease_required', 'Native lease synchronization was refused.')
+            self.synced_lease, self.synced_until = lease, now + seconds
         return lease
 
     def revoked(self):

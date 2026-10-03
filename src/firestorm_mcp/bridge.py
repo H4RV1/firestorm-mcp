@@ -16,6 +16,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import uuid
 import xml.etree.ElementTree as ET
+from contextlib import contextmanager
 
 from .protocol import FrameDecodeError, decode_typed, encode_frame, json_default, read_frame
 from .paths import viewer_directory
@@ -38,6 +39,11 @@ class LeapBridge:
         self.connected = True
         self.sequence = 0
         self.events = collections.deque(maxlen=1000)
+        self.event_bytes = 0
+        self.dropped_events = 0
+        self.last_dropped_cursor = 0
+        self.late_replies = 0
+        self.last_disconnect_reason = None
         self.apis = {}
         self.started = time.time()
         self.generation = str(uuid.uuid4())
@@ -79,10 +85,27 @@ class LeapBridge:
                         if not future.done():
                             future.set_result(data)
                     else:
+                        if reqid:
+                            self.late_replies += 1
+                            continue
                         self.sequence += 1
-                        self.events.append({"cursor": self.sequence, "timestamp": time.time(), **event})
+                        # Late replies are not subscription events. In particular, do
+                        # not retain a timed-out UI tree as an unsolicited event.
+                        size = len(json.dumps(event, default=json_default).encode("utf-8"))
+                        if size > 256 * 1024:
+                            self.dropped_events += 1
+                            self.last_dropped_cursor = self.sequence
+                            continue
+                        while self.events and (len(self.events) >= 1000 or self.event_bytes + size > 1024 * 1024):
+                            old = self.events.popleft()
+                            self.event_bytes -= old["_bytes"]
+                            self.last_dropped_cursor = max(self.last_dropped_cursor, old["cursor"])
+                            self.dropped_events += 1
+                        self.events.append({"cursor": self.sequence, "timestamp": time.time(), **event, "_bytes": size})
+                        self.event_bytes += size
         except Exception as exc:
             self.connected = False
+            self.last_disconnect_reason = type(exc).__name__
             with self.lock:
                 for future in self.pending.values():
                     if not future.done():
@@ -100,6 +123,8 @@ class LeapBridge:
             reply_pump = created["name"]
         future = concurrent.futures.Future()
         with self.lock:
+            if len(self.pending) >= 64:
+                raise RuntimeError("Too many pending viewer replies; request was not sent")
             self.pending[request_id] = future
             if isolated:
                 self.pending["pump:" + reply_pump] = future
@@ -139,6 +164,24 @@ class LeapBridge:
         return result
 
     def call(self, api, op, arguments=None, expect_reply=None, timeout=15):
+        if api == "LLWindow" and op == "getInfo" and "FSMCPUI" in self.apis:
+            result = self.call("FSMCPUI", "getControls", {"paths": [(arguments or {}).get("path", "")],
+                "include_values": True, "max_bytes": 4096}, expect_reply=True, timeout=timeout)
+            item = result["controls"][0]
+            if item.get("error"):
+                raise ValueError(item["error"])
+            return item
+        # Guard the dispatcher, including raw/dynamic tools and direct RPC users.
+        # Client-side result slicing cannot bound the viewer's tree traversal.
+        if api == "LLWindow" and op == "getPaths":
+            if "FSMCPUI" not in self.apis:
+                self.discover()
+            if "FSMCPUI" not in self.apis:
+                raise ValueError("Unbounded LLWindow.getPaths is disabled. Use ui_map/ui_read, or a viewer with FSMCPUI for ui_tree.")
+            arguments = dict(arguments or {})
+            api, op = "FSMCPUI", "getPaths"
+            arguments = {"under": arguments.get("under", ""), "limit": 200, "max_depth": 4}
+            expect_reply = True
         if api not in self.apis:
             self.discover()
         if api not in self.apis:
@@ -177,19 +220,26 @@ class LeapBridge:
 
     def handle(self, request):
         method = request.get("method")
+        expected = request.get("expected_bridge_generation")
+        if expected is not None and expected != self.generation:
+            raise ConnectionError("Bridge generation changed; reacquire and inspect state. Request was not dispatched.")
         if method == "status":
             return {"connected": self.connected, "helper_pid": os.getpid(), "started": self.started,
                     "bridge_generation": self.generation, "asset_bridge_contract": 1 if self.assets else None,
                     "api_count": len(self.apis), "event_cursor": self.sequence,
                     "decode_errors": self.decode_errors,
                     "repaired_duplicate_blocks": self.repaired_duplicate_blocks,
+                    "pending_requests": len(self.pending), "retained_event_bytes": self.event_bytes,
+                    "dropped_events": self.dropped_events, "disconnect_reason": self.last_disconnect_reason,
+                    "late_replies": self.late_replies,
+                    "ui_tree_policy": "native_bounded_only", "rpc_contract": 2,
                     "control_owner": self.owner_label if self.lease_until > time.monotonic() else None}
         if method == "events":
             after = int(request.get("after", 0))
             with self.lock:
-                return {"cursor": self.sequence, "events": [e for e in self.events if e["cursor"] > after],
-                        "dropped": bool(self.events and after and after < self.events[0]["cursor"] - 1)}
-        with self.operation_lock:
+                return {"cursor": self.sequence, "events": [{k: v for k, v in e.items() if k != "_bytes"} for e in self.events if e["cursor"] > after],
+                        "dropped": after < self.last_dropped_cursor}
+        with self.operation_slot():
             if self.lease_until <= time.monotonic():
                 self.owner = self.owner_label = None
             client_id = request.get("client_id")
@@ -240,6 +290,9 @@ class LeapBridge:
                 self.request(self.command_pump, {"op": "ping"})
                 return {"status": "dispatched", "menu": entry["name"], "verified_effect": False}
             if method == "call":
+                if request["api"] == "FSMCPBuilder" and request["op"] in {"commitLink", "commitFace", "selectObjects"}:
+                    if not self.connected or not self.owner or self.owner != client_id:
+                        raise RuntimeError("An active control lease is required for builder input")
                 if request["api"] == "FSMCPAssets":
                     if not self.assets:
                         raise RuntimeError("Asset gateway/journal is unavailable; restart the separate development viewer when convenient")
@@ -252,6 +305,15 @@ class LeapBridge:
             if method == "unsubscribe":
                 return self.request(self.command_pump, {"op": "stoplistening", "source": request["source"], "listener": "firestorm-mcp"})
         raise ValueError("Unknown local bridge method")
+
+    @contextmanager
+    def operation_slot(self):
+        if not self.operation_lock.acquire(timeout=2):
+            raise RuntimeError("Bridge busy; request was not dispatched. Inspect the running operation before retrying.")
+        try:
+            yield
+        finally:
+            self.operation_lock.release()
 
 
 def make_handler(bridge, token):
@@ -294,6 +356,9 @@ def make_handler(bridge, token):
                 result = {"error": {"type": type(exc).__name__, "message": str(exc)}}
                 status = 400
             body = json.dumps(result, default=json_default, allow_nan=False).encode("utf-8")
+            if len(body) > 16 * 1024 * 1024:
+                status = 400
+                body = json.dumps({"error": {"type": "ResponseTooLarge", "message": "Reply exceeds 16 MiB; the action may have completed. Inspect saved state before retrying."}}).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -325,6 +390,7 @@ def main():
     server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(bridge, token))
     server.daemon_threads = True
     connection = {"url": f"http://127.0.0.1:{server.server_port}/rpc", "token": token,
+                  "rpc_contract": 2, "bridge_generation": bridge.generation,
                   "pid": os.getpid(), "session_id": uuid.uuid4().hex, "started": time.time()}
     connection_file = args.runtime / "connection.json"
     temporary = args.runtime / f"connection-{os.getpid()}.tmp"

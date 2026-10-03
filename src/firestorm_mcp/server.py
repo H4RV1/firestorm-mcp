@@ -35,6 +35,8 @@ from .doctor import platform_support
 from .builder_tools import register_builder_tools
 from .asset_tools import register_asset_tools
 from .ui_map import register_ui_map_tools
+from .ui_native import register_native_ui_tools
+from .workflows import register_workflow_tools
 from . import __version__
 
 ROOT = data_root()
@@ -65,6 +67,8 @@ class Tools:
         register_builder_tools(self)
         register_asset_tools(self)
         register_ui_map_tools(self)
+        register_native_ui_tools(self)
+        register_workflow_tools(self)
 
     def register(self, description, read_only=False):
         def decorate(fn):
@@ -247,6 +251,9 @@ class Tools:
                 result = c.rpc("status")
             except ConnectionError as exc:
                 result = {"connected": False, "reason": str(exc)}
+            if not c.apis:
+                self.apis, self.dynamic = {}, {}
+            result["capabilities_refresh_needed"] = bool(result.get("connected") and not c.apis)
             return {**result, "local_platform": platform_support()}
 
         @reg("Discover all APIs and operations exposed by this running viewer; refresh dynamic MCP tool discovery.", True)
@@ -316,7 +323,11 @@ class Tools:
             return {"total_matches": len(paths), "paths": selected, "offset": offset,
                     "returned": len(selected), "next_offset": next_offset, "truncated": next_offset is not None,
                     "pagination_consistency": "live_query_per_page_not_a_snapshot",
-                    "info": info}
+                    "info": info, "source_truncated": response.get("truncated", False),
+                    "source_depth_limited": response.get("depth_limited", False),
+                    "bounded_in_viewer": response.get("bounded_in_viewer", False),
+                    "source_next_offset": response.get("next_offset"),
+                    "source_note": "Use ui_tree for native traversal paging; total_matches counts only this returned window."}
 
         @reg("Read the value of a specific discovered UI control. Use targeted paths to avoid unrelated chat or private fields.", True)
         def ui_get_value(path: str):

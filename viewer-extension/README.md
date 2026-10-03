@@ -1,5 +1,14 @@
 # Experimental native builder extension
 
+The local builder.2 source also adds `getNearby`, guarded selection/link/surface
+plans and the separate `FSMCPUI` bounded tree/control/list API. These new operations
+have compiled in a separately staged viewer and **have not passed live acceptance**.
+See [the complete contract and limits](../docs/BUILDER_RELIABILITY.md) and
+[current build provenance](builder-reliability-build.json). Plans retain the
+session UUID internally for revalidation; no session credential is returned.
+
+The historical notes below describe the original three read-only operations.
+
 The additional `FSMCPAssets` source in this directory has its own
 [contract](../docs/ASSET_API.md), [build record](assets-build-baseline.json) and
 [pending live acceptance](../docs/ASSET_ACCEPTANCE.md). The startup checks below
@@ -20,7 +29,7 @@ python scripts/apply_viewer_extension.py C:/src/phoenix-firestorm --profile-name
 python scripts/apply_viewer_extension.py C:/src/phoenix-firestorm --profile-name FirestormMCP
 ```
 
-The installer validates all source anchors before writing, adds two CMake entries,
+The current installer validates all source anchors before writing, adds builder/UI CMake entries,
 and registers the API just before LEAP child startup. Reapplication or unexpected
 source versions fail explicitly. Review the resulting diff, then follow the
 [official Windows build instructions](https://github.com/FirestormViewer/phoenix-firestorm/blob/master/doc/building_windows.md).
@@ -33,7 +42,7 @@ build passed with zero warnings/errors at
 `10bd3c9f930c76e1427ddd4ecece6cdf36b4406d`. Source anchors were also inspected on master at
 `0acb5f440a5d6dad4383d429442a262c068b7a37`; that master version was not built.
 
-The hook runs on the viewer event thread, reads cached state, and performs no
+The original three read operations run on the viewer event thread, read cached state, and perform no
 network requests, inventory mutations, script saves or object changes. Missing
 objects return errors. Missing names remain undefined. Faces are texture-entry
 indices, not mesh triangle indices; serialized texture entries are not resolved

@@ -4,14 +4,23 @@
 
 [Download](#download) · [Install](#install) · [Tools](docs/TOOLS.md) · [Agent guide](docs/AGENT_GUIDE.md) · [Contribute](CONTRIBUTING.md)
 
-**0.3.0a3+assets.1 · Local development version · MIT**
+**0.3.0a3+builder.2 · Local development version · MIT**
+
+This local integration combines the asset APIs with the XUI map, native bounded
+UI/row reads, cached nearby search, guarded link/surface plans and a persistent
+task executor. See the [implementation and validation record](docs/BUILDER_RELIABILITY.md)
+and [builder skill](skills/firestorm-builder/SKILL.md). The new native operations
+are compiled but still require live acceptance; the running viewer is not updated
+by installing this source. No release or PR is created for this local work.
 
 This checkout extends [AochiToxx/firestorm-mcp](https://github.com/AochiToxx/firestorm-mcp)
 with builder capability checks, measured viewer latency, and registered external-script
 editing with conflict detection and backups. See [research and capability map](docs/BUILDER_RESEARCH.md)
 and [script editing](docs/SCRIPT_EDITING.md). The read-only [native object/face hook](viewer-extension/README.md)
 has been compiled into a separate development viewer and passed startup API
-checks. In-world link/face accuracy still needs validation.
+checks. The earlier read-only script/link/face implementation has a bounded
+[live validation record](docs/BUILDER_VALIDATION.md); that does not validate the
+new mutation plans or UI endpoint.
 The downloads below are upstream releases and do not contain these local additions.
 The [asset/inventory API](docs/ASSET_API.md) adds asynchronous zero-cost sound
 uploads, notecards, verified inventory and generic owned-object delivery through

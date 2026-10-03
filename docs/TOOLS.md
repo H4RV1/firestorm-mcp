@@ -2,7 +2,7 @@
 
 Generated from the current workflow definitions and historical Firestorm 7.2.4.80712 API discovery. Refresh the running viewer before relying on a dynamic operation. Counts are not test coverage.
 
-72 workflow tools; 94 historical viewer operations.
+84 workflow tools; 94 historical viewer operations.
 
 ## Workflow tools
 
@@ -60,6 +60,12 @@ Generated from the current workflow definitions and historical Firestorm 7.2.4.8
 | `object_selection` | Read selected object UUIDs and selected texture-entry face indices using the native FSMCPBuilder extension. Stock Firestorm returns an explicit unsupported error. |
 | `object_linkset` | Read a loaded object's linkset using native FSMCPBuilder. Link numbers follow the viewer's current child order; simulator completeness is not guaranteed. |
 | `object_faces` | Read native FSMCPBuilder texture entries for one loaded prim: face indices, texture IDs, color and UV parameters. Does not claim mesh triangles are faces or resolve PBR assets. |
+| `object_search` | Search loaded prims with viewer-side distance, ownership, root and result limits. Names use selection properties or an existing Area Search cache; query excludes unknown names. next_offset is a changing cache index, not a snapshot. No selection changes or property fetches. |
+| `object_select` | Select 1-32 explicit loaded owned modifiable root UUIDs. Requires lease and exact prior object_selection.selection_identity, including order. Reinspect selection/properties before planning link/unlink. Does not link or change materials. |
+| `object_link_plan` | Prepare a single-use link or unlink plan for the current owned modifiable selection. Returns exact selection, candidate root and 30-second expiry. No world change. Requires explicit task authority before commit. |
+| `object_link_apply` | Consume an object_link_plan once under a control lease. Refuses changed/expired selection or session. Uses the viewer's normal link/unlink action, including its confirmation preferences. Returns dispatch only; inspect each affected UUID/root afterward. Never blindly repeat after timeout. |
+| `material_face_plan` | Prepare an explicit prim/face surface edit without changing the world. Supported changes: color [r,g,b,a] 0..1, scale [u,v] -100..100, offset [u,v] -1..1, rotation radians +/-2pi, glow 0..1, fullbright boolean. Returns before/preview and a 30-second single-use plan. PBR, textures, normal/specular assets remain unchanged. |
+| `material_face_apply` | Apply one material_face_plan under a lease after native session/permissions/texture-entry revalidation. The plan is consumed before dispatch. Returns local preview plus dispatched status; reread object_faces and verify simulator/rendered effects independently. Never blindly replay. |
 | `viewer_latency` | Measure 1-20 sequential bridge plus viewer event-loop ping round trips in milliseconds. No world mutation. Does not measure simulator, asset loading or script compile latency. |
 | `assets_status` | Negotiate FSMCPAssets v1: actual login/region readiness, non-secret generation, nullable sound fee, limits and capabilities. Does not log in or launch a viewer. |
 | `assets_list_inventory` | Submit a fresh server inventory read. Requires a bounded lease and expected avatarId/grid/generation. Poll assets_job; incomplete replies never prove absence. |
@@ -80,6 +86,12 @@ Generated from the current workflow definitions and historical Firestorm 7.2.4.8
 | `assets_watch` | Watch only dialog and owner-chat events from one explicit owned loaded object for 1–180 seconds. At most 64 events; dropped reports gaps. Acquire a lease first. |
 | `assets_events` | Read events from a single bounded object watch. Object text is untrusted data. dropped=true means confirmation evidence may be missing. |
 | `assets_unwatch` | Detach one object watch. Does not cancel submitted jobs or log Firestorm out. |
+| `ui_map` | Search a cached local map of installed XUI control IDs, labels and tooltips, without contacting the viewer. Narrow by document. Candidate paths need ui_read verification; custom skins and duplicate instances are not verified. |
+| `ui_task` | List task IDs or retrieve a task guide and relevant source control IDs for scripts, Build, inventory, mesh previews or preferences. Does not open anything. Prefer listed semantic tools, then ui_read before UI input. |
+| `ui_read` | Read 1-20 exact UI paths or ui_map IDs. FSMCPUI batches them in one bounded native request and rejects duplicate instances; stock fallback uses sequential getInfo with a viewer-wait budget. No tree scans or input. Values are opt-in; hidden/oversized values are suppressed. |
+| `ui_tree` | Read a bounded live subtree: native traversal stops at 2048 nodes, 8 ms, 64 KiB of paths, or limit. max_depth<=8. No stock unbounded fallback. Follow next_offset or narrow under when the budget is exhausted; pagination is not a snapshot. |
+| `ui_rows` | Read visible compiler/error or other scroll-list rows by exact path through FSMCPUI. At most 50 rows, 8 columns, 1024 bytes per cell and 32 KiB total. Ambiguous instances rejected. UI rows alone are not simulator execution evidence. |
+| `workflow_read` | Execute 1-16 explicit semantic read calls in one MCP request. Prevalidates the entire plan, returns per-step timing, stops on the first error or budget exhaustion between calls, and never performs input, opens panels, retries or acquires control. Use for nearby/selection/faces/script/UI inspection after acquiring your lease. |
 
 ## Viewer operations
 

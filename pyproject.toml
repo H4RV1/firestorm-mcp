@@ -31,6 +31,7 @@ firestorm-mcp-launch = "firestorm_mcp.launcher:main"
 firestorm-mcp-check = "firestorm_mcp.probe:main"
 firestorm-mcp-config = "firestorm_mcp.configure:main"
 firestorm-mcp-doctor = "firestorm_mcp.doctor:main"
+firestorm-mcp-execute = "firestorm_mcp.executor:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

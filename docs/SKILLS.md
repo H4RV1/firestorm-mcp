@@ -1,5 +1,11 @@
 # Mesh-preview agent skill
 
+For the local builder.2 package, [firestorm-builder](../skills/firestorm-builder/SKILL.md)
+adds nearby-object, link/unlink, surface, script, bounded UI and asset recovery
+procedures. Copy that entire directory into your host's skills directory. It is
+independent of MCP runtime installation and adds no permissions. Its packaged
+instructions are validated; a live skill-driven performance benchmark is pending.
+
 The MCP supplies tools. The optional **firestorm-mesh-preview** skill supplies the importer procedure: source commits, LOD/physics checks, captures and cleanup.
 
 It follows the [Agent Skills format](https://agentskills.io/specification). It adds instructions, not viewer capabilities or permissions. A speed improvement has not been measured.
