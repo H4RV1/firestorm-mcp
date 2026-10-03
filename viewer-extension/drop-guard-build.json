@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-03",
+  "native_parent": "618901ffc8e997a5abb84139c5c7620e329390ba",
+  "native_commit": "d1a592c24b9d6fbd6add5159440bb66057c15375",
+  "native_commit_note": "Local only. Executable built from this source change before committing; displayed version remains 7.2.4.4.",
+  "package_version": "0.3.0a3+builder.3",
+  "platform": "Windows x64",
+  "channel": "Firestorm-MCP-Assets-Development",
+  "compiled": true,
+  "staged": true,
+  "isolated_python_tests": 230,
+  "native_signed_face_regression": "passed",
+  "offline_wheel_check": "passed",
+  "live_startup_verified": false,
+  "live_drop_verified": false,
+  "executable_sha256": "b9f781e19814b772483339d4812adb027f2b370f7e3af14a3facfc19982673a7"
+}

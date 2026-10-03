@@ -1,5 +1,9 @@
 # Experimental native builder extension
 
+The local [material/texture drop crash fix](../docs/MATERIAL_DROP_FIX.md) is applied
+separately with `scripts/apply_drop_guard.py` before compiling this baseline.
+It rejects invalid signed face picks; in-world drop acceptance remains pending.
+
 The local builder.2 source also adds `getNearby`, guarded selection/link/surface
 plans and the separate `FSMCPUI` bounded tree/control/list API. These new operations
 have compiled in a separately staged viewer and **have not passed live acceptance**.
