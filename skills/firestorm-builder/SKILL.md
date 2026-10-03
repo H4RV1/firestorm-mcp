@@ -39,6 +39,10 @@ to send guessed raw commands or restart a shared viewer.
 
 ## UI and scripts
 
+When the user needs to keep working in another application, use
+[background perception](references/background-ui.md). Prefer scoped structure
+and native next-frame capture over any desktop-control fallback.
+
 Use `ui_task` for task IDs and `ui_map` for labels/IDs without a live scan. Verify
 only the needed controls with `ui_read`. In a compatible viewer, 1-20 controls use
 one native round trip and ambiguous runtime names are rejected. Use `ui_tree`

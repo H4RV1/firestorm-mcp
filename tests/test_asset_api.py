@@ -283,7 +283,7 @@ def test_stock_viewer_gates_assets_without_mutation(tmp_path):
     tools.client.rpc = lambda method: {}  # only discovery
     result = tools.local['assets_status']()
     assert result['failure']['code'] == 'unsupported_viewer'
-    assert len(tools.local) == 84
+    assert len(tools.local) == 89
     assert tools.definitions['assets_upload_sound'].input_schema['properties']['expected']['$ref']
 
 

@@ -88,7 +88,7 @@ def test_real_mcp_stdio_handshake_offline(tmp_path):
             assert session.server_info.name == "firestorm-mcp"
             assert session.protocol_version == "2026-07-28"
             listed = await session.list_tools()
-            assert len(listed.tools) == 84
+            assert len(listed.tools) == 89
             guide = await session.call_tool("ui_task", {})
             assert not guide.is_error
             task_result = json.loads(guide.content[0].text)

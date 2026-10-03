@@ -1,0 +1,22 @@
+{
+  "package_version": "0.3.0a3+builder.3",
+  "date": "2026-10-03",
+  "native_parent": "a693ce1d7a48c95d02128b5ff6e30a00fd9a2955",
+  "native_commit": "618901ffc8e997a5abb84139c5c7620e329390ba",
+  "native_commit_note": "Local provenance only; not published upstream.",
+  "viewer_version": "7.2.4.4",
+  "platform": "Windows x64",
+  "channel": "Firestorm-MCP-Assets-Development",
+  "profile_name": "FirestormMCPAssets",
+  "profile_shared_with_builder2": true,
+  "compiled": true,
+  "staged": true,
+  "live_capture_verified": true,
+  "live_minimized_structure_verified": true,
+  "ui_source_sha256": "0da55f91978500dc24b40b3e4da8ffe2d72b01fbf54d888725bec3d00af8c8a6",
+  "executable_sha256": "0cd3ad16e820bfc6f615f8ec44adce7edf2c5846bee584933c4a54953ec8b65d",
+  "live_background_structure_verified": true,
+  "live_focus_cursor_preserved": true,
+  "live_lease_cleanup_verified": true,
+  "live_minimized_capture_refusal_verified": true
+}

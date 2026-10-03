@@ -2,7 +2,7 @@
 
 Generated from the current workflow definitions and historical Firestorm 7.2.4.80712 API discovery. Refresh the running viewer before relying on a dynamic operation. Counts are not test coverage.
 
-84 workflow tools; 94 historical viewer operations.
+89 workflow tools; 94 historical viewer operations.
 
 ## Workflow tools
 
@@ -91,6 +91,11 @@ Generated from the current workflow definitions and historical Firestorm 7.2.4.8
 | `ui_read` | Read 1-20 exact UI paths or ui_map IDs. FSMCPUI batches them in one bounded native request and rejects duplicate instances; stock fallback uses sequential getInfo with a viewer-wait budget. No tree scans or input. Values are opt-in; hidden/oversized values are suppressed. |
 | `ui_tree` | Read a bounded live subtree: native traversal stops at 2048 nodes, 8 ms, 64 KiB of paths, or limit. max_depth<=8. No stock unbounded fallback. Follow next_offset or narrow under when the budget is exhausted; pagination is not a snapshot. |
 | `ui_rows` | Read visible compiler/error or other scroll-list rows by exact path through FSMCPUI. At most 50 rows, 8 columns, 1024 bytes per cell and 32 KiB total. Ambiguous instances rejected. UI rows alone are not simulator execution evidence. |
+| `background_status` | Report native background observation support and window render state without activation. Minimized windows support structure but cannot supply fresh rendered pixels. Capability discovery is not effect verification. |
+| `ui_scene` | Read a bounded scoped live UI scene with names, roles, geometry and a revision. No editable values or desktop input. Works while rendering is suspended; truncation/depth limits mean incomplete coverage. Paths are observations, not stable action handles. |
+| `ui_visualize` | Return an MCP image showing a numbered structural UI map plus exact-path legend. This is a schematic, never a screenshot. Works without foregrounding/restoring Firestorm, including minimized windows with live UI structure. |
+| `ui_capture` | Capture a scoped fresh normal Firestorm render frame as an MCP image. No OS screenshot, cursor movement, activation, forced redraw or restore. Requires a lease. Returns unavailable when minimized/rendering suspended. Up to 4M source pixels, 1600 output edge and 4MiB PNG. Viewer panels can occlude the target. |
+| `ui_wait_change` | Wait up to ten seconds for a scoped structural UI revision to change, with bounded polling. Does not compare editable values or pixels. Returns the latest scene; incomplete scopes cannot prove absence or full UI stability. |
 | `workflow_read` | Execute 1-16 explicit semantic read calls in one MCP request. Prevalidates the entire plan, returns per-step timing, stops on the first error or budget exhaustion between calls, and never performs input, opens panels, retries or acquires control. Use for nearby/selection/faces/script/UI inspection after acquiring your lease. |
 
 ## Viewer operations

@@ -45,6 +45,8 @@ def register_builder_tools(tools):
                 "link_plans": has("FSMCPBuilder", "prepareLink") and has("FSMCPBuilder", "commitLink"),
                 "object_select": has("FSMCPBuilder", "selectObjects"),
                 "bounded_ui": has("FSMCPUI", "getControls"),
+                "background_ui_scene": has("FSMCPUI", "getScene"),
+                "background_frame_capture": has("FSMCPUI", "requestCapture") and has("FSMCPUI", "captureResult"),
                 "compiler_rows": has("FSMCPUI", "getRows"),
                 "legacy_surface_plans": has("FSMCPBuilder", "prepareFace") and has("FSMCPBuilder", "commitFace"),
                 "script_editing": "registered_external_editor_files",

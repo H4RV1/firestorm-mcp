@@ -7,9 +7,10 @@ import sys
 
 from .probe import unpack
 from .workflows import READ_TOOLS
+from .background_ui import BACKGROUND_READS, BACKGROUND_WRITES
 
 
-def validate_plan(plan, allow_writes=False):
+def validate_plan(plan, allow_writes=False, background_only=False):
     if not isinstance(plan, dict) or set(plan) != {"version", "calls"} or plan["version"] != 1:
         raise ValueError("Plan requires version:1 and calls")
     if not isinstance(plan["calls"], list) or not 1 <= len(plan["calls"]) <= 32:
@@ -19,12 +20,14 @@ def validate_plan(plan, allow_writes=False):
             raise ValueError("Each call requires tool and arguments")
         if step["tool"] in {"control_acquire", "control_release"}:
             raise ValueError("The executor owns its bounded lease")
-        if not allow_writes and step["tool"] not in READ_TOOLS | {"workflow_read", "object_link_plan"}:
+        if background_only and step['tool'] not in BACKGROUND_READS | BACKGROUND_WRITES:
+            raise ValueError('Tool is not approved for background execution; no calls were sent: ' + step['tool'])
+        if not allow_writes and step["tool"] not in READ_TOOLS | BACKGROUND_READS | {"workflow_read", "object_link_plan"}:
             raise ValueError("This plan needs --allow-writes and task authority; no calls were sent")
 
 
-async def execute(session, plan, allow_writes=False):
-    validate_plan(plan, allow_writes)
+async def execute(session, plan, allow_writes=False, background_only=False):
+    validate_plan(plan, allow_writes, background_only)
     # Validate against the running server before taking a lease or executing.
     import jsonschema
     listed = await session.list_tools()
@@ -65,7 +68,7 @@ async def execute(session, plan, allow_writes=False):
             results.append({"tool": step["tool"], "result": value})
             if isinstance(value, dict) and value.get("state") in {"queued", "running"}:
                 return {"complete": False, "results": results, "stopped": "job_pending"}
-            if isinstance(value, dict) and (value.get("ok") is False or value.get("complete") is False or value.get("state") in {"failed", "unknown", "cancelled"}):
+            if isinstance(value, dict) and (value.get("ok") is False or value.get("complete") is False or value.get("state") in {"failed", "unknown", "cancelled", "unavailable", "expired"}):
                 return {"complete": False, "results": results, "stopped": "operation_incomplete"}
         return {"complete": True, "results": results, "meaning": "plan_calls_returned; inspect each result for job/dispatch/evidence status"}
     finally:
@@ -81,17 +84,18 @@ def main():
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--viewer-dir", type=Path, required=True)
     parser.add_argument("--allow-writes", action="store_true")
+    parser.add_argument("--background-only", action="store_true", help="Reject UI input, arbitrary viewer calls, camera changes, pickers and legacy snapshots before any dispatch")
     args = parser.parse_args()
     if args.plan.stat().st_size > 2 * 1024 * 1024:
         raise ValueError("Plan exceeds 2 MiB; submit large assets using persistent MCP directly")
     plan = json.loads(args.plan.read_text(encoding="utf-8"))
-    validate_plan(plan, args.allow_writes)
+    validate_plan(plan, args.allow_writes, args.background_only)
     async def run():
         from mcp import Client, StdioServerParameters
         params = StdioServerParameters(command=sys.executable, args=["-m", "firestorm_mcp.server",
             "--tool-profile", "compact", "--data-dir", str(args.data_dir), "--viewer-dir", str(args.viewer_dir)])
         async with Client(params) as session:
-            return await execute(session, plan, args.allow_writes)
+            return await execute(session, plan, args.allow_writes, args.background_only)
     print(json.dumps(asyncio.run(run()), ensure_ascii=False))
 
 

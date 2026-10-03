@@ -8,6 +8,9 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from apply_background_ui import display_hook
 
 BUILDER_V1_HASH = '7753f7ac907c25ec11ff5a76e5974923ccf6894a6c6c21bad78df83907ada96b'
 
@@ -26,7 +29,8 @@ def apply(checkout, dry_run=False):
         if text.count(anchor) != 1 or f'fsmcpui.{ext}' in text or (newview / f'fsmcpui.{ext}').exists():
             raise ValueError('Unknown/already installed UI integration; no files written')
         text = text.replace(anchor, anchor + f'    fsmcpui.{ext}\n', 1)
-    edits = {cmake: text}
+    display = newview / 'llviewerdisplay.cpp'
+    edits = {cmake: text, display: display_hook(display.read_text(encoding='utf-8'))}
     for name in ('fsmcpbuilder.cpp', 'fsmcpui.cpp', 'fsmcpui.h'):
         edits[newview / name] = (source / name).read_text(encoding='utf-8')
     if not dry_run:

@@ -4,7 +4,11 @@
 
 [Download](#download) · [Install](#install) · [Tools](docs/TOOLS.md) · [Agent guide](docs/AGENT_GUIDE.md) · [Contribute](CONTRIBUTING.md)
 
-**0.3.0a3+builder.2 · Local development version · MIT**
+**0.3.0a3+builder.3 · Local development version · MIT**
+
+Builder.3 adds [background UI perception](docs/BACKGROUND_UI.md): scoped structural
+maps, native next-frame capture, bounded change waits and a background-only task
+executor. Minimized viewers provide structure but explicitly refuse fresh pixels.
 
 This local integration combines the asset APIs with the XUI map, native bounded
 UI/row reads, cached nearby search, guarded link/surface plans and a persistent

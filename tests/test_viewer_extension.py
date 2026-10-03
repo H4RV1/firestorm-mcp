@@ -14,6 +14,7 @@ spec.loader.exec_module(installer)
 def checkout(tmp_path):
     path = tmp_path / "indra/newview"
     path.mkdir(parents=True)
+    (path / 'llviewerdisplay.cpp').write_text('#include "llviewerwindow.h"\n    if (gDisplaySwapBuffers)\n    {\n        gViewerWindow->getWindow()->swapBuffers();\n')
     (path / "CMakeLists.txt").write_text("    llagentlistener.cpp\n    llagentlistener.h\n")
     (path / "llappviewer.cpp").write_text('#include "llleap.h"\nvoid init()\n    {\n        // Iterate over --leap command-line options.\n')
     return tmp_path, path

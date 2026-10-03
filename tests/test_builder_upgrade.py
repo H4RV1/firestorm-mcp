@@ -9,6 +9,7 @@ def test_upgrade_checks_every_destination_before_writing(tmp_path, monkeypatch):
     spec = importlib.util.spec_from_file_location('upgrade', Path(__file__).parents[1] / 'scripts/apply_builder_upgrade.py')
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
     root = tmp_path / 'indra/newview'; root.mkdir(parents=True)
+    (root / 'llviewerdisplay.cpp').write_text('#include "llviewerwindow.h"\n    if (gDisplaySwapBuffers)\n    {\n        gViewerWindow->getWindow()->swapBuffers();\n')
     (root / 'fsmcpbuilder.cpp').write_text('synthetic old source\n')
     monkeypatch.setattr(module, 'BUILDER_V1_HASH', hashlib.sha256(b'synthetic old source\n').hexdigest())
     (root / 'CMakeLists.txt').write_text('    fsmcpbuilder.cpp\n    fsmcpbuilder.h\n')

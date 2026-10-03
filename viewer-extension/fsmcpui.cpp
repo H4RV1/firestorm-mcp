@@ -12,12 +12,52 @@
 #include "llscrolllistcell.h"
 #include "lluri.h"
 #include "llsdutil.h"
+#include "llviewerwindow.h"
+#include "llwindow.h"
+#include "llfocusmgr.h"
+#include "llbutton.h"
+#include "llcheckboxctrl.h"
+#include "llimagepng.h"
+#include "llrender.h"
+#include "pipeline.h"
+#include "lluuid.h"
+#include <cmath>
 #include <chrono>
 #include <functional>
 #include <stdexcept>
 
 namespace
 {
+using Clock = std::chrono::steady_clock;
+struct Capture
+{
+    LLUUID id;
+    std::string path;
+    LLRect rect;
+    LLHandle<LLView> view;
+    S32 width = 0, height = 0, max_size = 1280;
+    Clock::time_point expires;
+    LLSD result;
+};
+Capture capture;
+
+LLSD context()
+{
+    LLSD value;
+    value["schema_version"] = 1;
+    value["app_has_focus"] = gFocusMgr.getAppHasFocus();
+    value["window_visible"] = gViewerWindow->getWindow()->getVisible();
+    value["window_minimized"] = gViewerWindow->getWindow()->getMinimized();
+    value["render_active"] = gViewerWindow->getActive();
+    value["width"] = gViewerWindow->getWindowWidthRaw();
+    value["height"] = gViewerWindow->getWindowHeightRaw();
+    value["ui_scale_x"] = gViewerWindow->getDisplayScale().mV[VX];
+    value["ui_scale_y"] = gViewerWindow->getDisplayScale().mV[VY];
+    value["desktop_input_used"] = false;
+    value["focus_requested"] = false;
+    return value;
+}
+
 std::string exactPath(LLView* view)
 {
     std::vector<std::string> names;
@@ -110,8 +150,96 @@ public:
             &FSMCPUI::getControls, LLSD().with("reply", LLSD()).with("paths", LLSD()));
         add("getRows", "Read a visible scroll list (compiler messages etc.), <=50 rows and <=8 columns. No input.",
             &FSMCPUI::getRows, LLSD().with("reply", LLSD()).with("path", LLSD()));
+        add("getContext", "Window/render state without activation or input.", &FSMCPUI::getContext, LLSD().with("reply", LLSD()));
+        add("getScene", "Scoped structural UI map, <=128 controls, 1024 visits, 8 ms. No field values.",
+            &FSMCPUI::getScene, LLSD().with("reply", LLSD()).with("under", LLSD()));
+        add("requestCapture", "Request one scoped next-frame capture. Does not render, activate, restore or move the cursor. Expires in five seconds.",
+            &FSMCPUI::requestCapture, LLSD().with("reply", LLSD()).with("path", LLSD()));
+        add("captureResult", "Read/consume a requested frame. PNG <=4 MiB; expires after ten seconds. No cached frame fallback.",
+            &FSMCPUI::captureResult, LLSD().with("reply", LLSD()).with("capture_id", LLSD()));
     }
 private:
+    void getContext(const LLSD& r) { Response response(context(), r); }
+    void getScene(const LLSD& r)
+    {
+        Response response(LLSD(), r);
+        try
+        {
+            S32 limit = bound(r, "limit", 80, 1, 128), depth_limit = bound(r, "max_depth", 3, 0, 8);
+            auto started = Clock::now();
+            auto root = exactView(r["under"].asString());
+            response["schema_version"] = 1; response["context"] = context();
+            response["root"] = observation(root, false, 1);
+            response["controls"] = LLSD::emptyArray();
+            bool stopped = false, depth_limited = false;
+            S32 visits = 0, bytes = 0;
+            std::function<void(LLView*, S32)> visit = [&](LLView* view, S32 depth)
+            {
+                if (stopped) return;
+                if (++visits > 1024 || Clock::now() - started > std::chrono::milliseconds(8)) { stopped = true; return; }
+                if (!view->isInVisibleChain()) return;
+                LLSD item = observation(view, false, 1);
+                std::string path = item["path"].asString();
+                if (path.size() > 2048 || bytes + path.size() > 65536 || response["controls"].size() >= limit) { stopped = true; return; }
+                bytes += (S32)path.size();
+                item["name"] = view->getName().size() <= 128 ? view->getName() : "[name exceeds byte limit]";
+                item["depth"] = depth;
+                item["role"] = dynamic_cast<LLButton*>(view) ? "button" : dynamic_cast<LLCheckBoxCtrl*>(view) ? "checkbox" : "view";
+                response["controls"].append(item);
+                if (depth == depth_limit) { depth_limited |= !view->getChildList()->empty(); return; }
+                for (LLView* child : *view->getChildList()) { visit(child, depth + 1); if (stopped) break; }
+            };
+            visit(root, 0);
+            response["truncated"] = stopped; response["depth_limited"] = depth_limited;
+            response["visited"] = visits; response["values_included"] = false;
+            response["evidence"] = "ui_structure_not_pixels";
+        }
+        catch (const std::exception& e) { response.error(e.what()); }
+    }
+    void requestCapture(const LLSD& r)
+    {
+        Response response(LLSD(), r);
+        try
+        {
+            response["schema_version"] = 1;
+            if (capture.id.notNull() && Clock::now() < capture.expires) throw std::runtime_error("A capture is pending or awaiting consumption");
+            auto state = context();
+            if (!state["window_visible"].asBoolean() || state["window_minimized"].asBoolean() || !state["render_active"].asBoolean())
+            {
+                response["state"] = "unavailable"; response["reason"] = "render_suspended"; response["context"] = state; return;
+            }
+            auto view = exactView(r["path"].asString());
+            if (!view->isInVisibleChain()) throw std::runtime_error("Capture target is hidden");
+            S32 width = state["width"].asInteger(), height = state["height"].asInteger();
+            LLRect scaled = view->calcScreenRect();
+            const auto& scale = gViewerWindow->getDisplayScale();
+            LLRect rect(llclamp((S32)std::floor(scaled.mLeft * scale.mV[VX]), 0, width),
+                        llclamp((S32)std::ceil(scaled.mTop * scale.mV[VY]), 0, height),
+                        llclamp((S32)std::ceil(scaled.mRight * scale.mV[VX]), 0, width),
+                        llclamp((S32)std::floor(scaled.mBottom * scale.mV[VY]), 0, height));
+            if (rect.getWidth() < 1 || rect.getHeight() < 1 || (S64)rect.getWidth() * rect.getHeight() > 4194304)
+                throw std::runtime_error("Capture crop must contain 1-4194304 pixels; choose a smaller panel");
+            S32 max_size = bound(r, "max_size", 1280, 64, 1600);
+            capture = Capture(); capture.id.generate(); capture.path = r["path"].asString(); capture.rect = rect;
+            capture.view = view->getHandle(); capture.width = width; capture.height = height; capture.max_size = max_size;
+            capture.expires = Clock::now() + std::chrono::seconds(5);
+            capture.result = LLSD().with("state", "pending");
+            response["capture_id"] = capture.id; response["state"] = "pending";
+            response["context"] = state;
+        }
+        catch (const std::exception& e) { response.error(e.what()); }
+    }
+    void captureResult(const LLSD& r)
+    {
+        Response response(LLSD(), r);
+        response["schema_version"] = 1;
+        if (capture.id.isNull() || LLUUID(r["capture_id"].asString()) != capture.id || Clock::now() >= capture.expires)
+        { response["state"] = "unavailable"; response["reason"] = "expired_or_unknown"; return; }
+        response["capture_id"] = capture.id;
+        response["result"] = capture.result;
+        response["state"] = capture.result["state"];
+        if (capture.result["state"].asString() != "pending") capture = Capture();
+    }
     void getPaths(const LLSD& r)
     {
         Response response(LLSD(), r);
@@ -212,3 +340,54 @@ private:
 };
 }
 void initFSMCPUI() { static FSMCPUI api; }
+
+void fsmcpUICaptureFrame()
+{
+    if (capture.id.isNull()) return;
+    if (Clock::now() >= capture.expires) { capture = Capture(); return; }
+    if (capture.result["state"].asString() != "pending") return;
+    try
+    {
+        auto view = capture.view.get();
+        if (!view || !view->isInVisibleChain() || exactView(capture.path) != view ||
+            gViewerWindow->getWindowWidthRaw() != capture.width || gViewerWindow->getWindowHeightRaw() != capture.height)
+            throw std::runtime_error("capture_target_changed");
+        LLRect scaled = view->calcScreenRect();
+        const auto& scale = gViewerWindow->getDisplayScale();
+        LLRect rect(llclamp((S32)std::floor(scaled.mLeft * scale.mV[VX]), 0, capture.width),
+                    llclamp((S32)std::ceil(scaled.mTop * scale.mV[VY]), 0, capture.height),
+                    llclamp((S32)std::ceil(scaled.mRight * scale.mV[VX]), 0, capture.width),
+                    llclamp((S32)std::floor(scaled.mBottom * scale.mV[VY]), 0, capture.height));
+        if (rect != capture.rect) throw std::runtime_error("capture_geometry_changed");
+        if (!gPipeline.hasRenderDebugFeatureMask(LLPipeline::RENDER_DEBUG_FEATURE_UI)) throw std::runtime_error("ui_rendering_disabled");
+        GLint framebuffer = 0, pack_buffer = 0;
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &framebuffer);
+        glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack_buffer);
+        if (framebuffer || pack_buffer) throw std::runtime_error("unsupported_readback_state");
+        LLPointer<LLImageRaw> raw = new LLImageRaw(rect.getWidth(), rect.getHeight(), 3);
+        if (!raw->getData()) throw std::runtime_error("capture_allocation_failed");
+        GLint read_buffer, alignment, row_length, skip_rows, skip_pixels;
+        glGetIntegerv(GL_READ_BUFFER, &read_buffer); glGetIntegerv(GL_PACK_ALIGNMENT, &alignment);
+        glGetIntegerv(GL_PACK_ROW_LENGTH, &row_length); glGetIntegerv(GL_PACK_SKIP_ROWS, &skip_rows);
+        glGetIntegerv(GL_PACK_SKIP_PIXELS, &skip_pixels);
+        gGL.flush(); glReadBuffer(GL_BACK);
+        glPixelStorei(GL_PACK_ALIGNMENT, 1); glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+        glPixelStorei(GL_PACK_SKIP_ROWS, 0); glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
+        glReadPixels(rect.mLeft, rect.mBottom, rect.getWidth(), rect.getHeight(), GL_RGB, GL_UNSIGNED_BYTE, raw->getData());
+        GLenum error = glGetError();
+        glReadBuffer(read_buffer); glPixelStorei(GL_PACK_ALIGNMENT, alignment); glPixelStorei(GL_PACK_ROW_LENGTH, row_length);
+        glPixelStorei(GL_PACK_SKIP_ROWS, skip_rows); glPixelStorei(GL_PACK_SKIP_PIXELS, skip_pixels);
+        if (error != GL_NO_ERROR) throw std::runtime_error("capture_gl_error");
+        F64 factor = llmin(1.0, (F64)capture.max_size / llmax(rect.getWidth(), rect.getHeight()));
+        if (factor < 1.0 && !raw->scale(llmax(1, (S32)(rect.getWidth() * factor)), llmax(1, (S32)(rect.getHeight() * factor))))
+            throw std::runtime_error("capture_scale_failed");
+        LLPointer<LLImagePNG> png = new LLImagePNG;
+        if (!png->encode(raw, 0.0f) || png->getDataSize() > 4194304) throw std::runtime_error("capture_encoding_limit");
+        capture.result = LLSD().with("state", "ready").with("png", LLSD::Binary(png->getData(), png->getData() + png->getDataSize()))
+            .with("width", raw->getWidth()).with("height", raw->getHeight()).with("context", context())
+            .with("path", capture.path).with("evidence", "normal_render_frame_after_request")
+            .with("occlusion", "viewer_panels_may_overlap_target").with("captured_at", LLDate::now());
+    }
+    catch (const std::exception& e) { capture.result = LLSD().with("state", "unavailable").with("reason", e.what()); }
+    capture.expires = Clock::now() + std::chrono::seconds(10);
+}

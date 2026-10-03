@@ -7,7 +7,7 @@ from .protocol import json_default
 READ_TOOLS = frozenset({
     "connection_status", "builder_capabilities", "assets_status", "object_search",
     "object_selection", "object_linkset", "object_faces", "script_sessions", "script_read",
-    "ui_map", "ui_task", "ui_tree", "ui_read", "ui_rows", "mesh_upload_status", "asset_inspect",
+    "ui_map", "ui_task", "ui_tree", "ui_read", "ui_rows", "ui_scene", "ui_wait_change", "background_status", "mesh_upload_status", "asset_inspect",
 })
 
 

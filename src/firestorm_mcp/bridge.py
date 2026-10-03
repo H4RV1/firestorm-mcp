@@ -290,6 +290,9 @@ class LeapBridge:
                 self.request(self.command_pump, {"op": "ping"})
                 return {"status": "dispatched", "menu": entry["name"], "verified_effect": False}
             if method == "call":
+                if request["api"] == "FSMCPUI" and request["op"] in {"requestCapture", "captureResult"}:
+                    if not self.connected or not self.owner or self.owner != client_id:
+                        raise RuntimeError("An active control lease is required for UI capture")
                 if request["api"] == "FSMCPBuilder" and request["op"] in {"commitLink", "commitFace", "selectObjects"}:
                     if not self.connected or not self.owner or self.owner != client_id:
                         raise RuntimeError("An active control lease is required for builder input")

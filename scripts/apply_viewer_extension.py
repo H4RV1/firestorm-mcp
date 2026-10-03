@@ -6,6 +6,9 @@ All anchors and destinations are validated before any writes.
 import argparse
 from pathlib import Path
 import re
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from apply_background_ui import display_hook
 
 
 def apply(checkout, dry_run=False, profile_name=None):
@@ -41,6 +44,8 @@ def apply(checkout, dry_run=False, profile_name=None):
         if destination.exists():
             raise ValueError(f"Refusing to overwrite {destination}")
         edits[destination] = (source / name).read_text(encoding="utf-8")
+    display = newview / 'llviewerdisplay.cpp'
+    edits[display] = display_hook(display.read_text(encoding='utf-8'))
     if not dry_run:
         for path, text in edits.items():
             path.write_text(text, encoding="utf-8", newline="\n")

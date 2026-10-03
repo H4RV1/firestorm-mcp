@@ -28,6 +28,7 @@ from jsonschema import Draft202012Validator
 from pydantic import ConfigDict, create_model
 
 from .assets import inspect_asset, compare_images, file_record, capture_quality
+from .background_ui import register_background_tools
 from .client import BridgeClient
 from .protocol import json_default
 from .paths import data_root, viewer_directory
@@ -68,6 +69,7 @@ class Tools:
         register_asset_tools(self)
         register_ui_map_tools(self)
         register_native_ui_tools(self)
+        register_background_tools(self)
         register_workflow_tools(self)
 
     def register(self, description, read_only=False):

@@ -1190,6 +1190,21 @@
     }
   },
   {
+    "name": "background_status",
+    "description": "Report native background observation support and window render state without activation. Minimized windows support structure but cannot supply fresh rendered pixels. Capability discovery is not effect verification.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "background_statusArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
     "name": "builder_capabilities",
     "description": "Report sidecar builder capabilities from live discovery. External-file editing requires External Edit registration. Complete object APIs are unavailable without a compatible native endpoint; runtime injection is not implemented. Discovery is not a live-effect test.",
     "inputSchema": {
@@ -2217,6 +2232,34 @@
     }
   },
   {
+    "name": "ui_capture",
+    "description": "Capture a scoped fresh normal Firestorm render frame as an MCP image. No OS screenshot, cursor movement, activation, forced redraw or restore. Requires a lease. Returns unavailable when minimized/rendering suspended. Up to 4M source pixels, 1600 output edge and 4MiB PNG. Viewer panels can occlude the target.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "max_size": {
+          "default": 1280,
+          "title": "Max Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "ui_captureArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
     "name": "ui_click",
     "description": "Click a visible, enabled control. A registered floater invokes a unique button callback; otherwise uses coordinates. observe_path returns before/after state. Verify the effect from readback.",
     "inputSchema": {
@@ -2608,6 +2651,39 @@
     }
   },
   {
+    "name": "ui_scene",
+    "description": "Read a bounded scoped live UI scene with names, roles, geometry and a revision. No editable values or desktop input. Works while rendering is suspended; truncation/depth limits mean incomplete coverage. Paths are observations, not stable action handles.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "under": {
+          "title": "Under",
+          "type": "string"
+        },
+        "limit": {
+          "default": 80,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "max_depth": {
+          "default": 3,
+          "title": "Max Depth",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "under"
+      ],
+      "title": "ui_sceneArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
     "name": "ui_select",
     "description": "Select a visible enabled combobox item by actual value, when supported by the viewer, and compare selected-value readback. Older viewers require path-targeted ui_press_key with readback.",
     "inputSchema": {
@@ -2740,6 +2816,87 @@
         "under"
       ],
       "title": "ui_treeArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ui_visualize",
+    "description": "Return an MCP image showing a numbered structural UI map plus exact-path legend. This is a schematic, never a screenshot. Works without foregrounding/restoring Firestorm, including minimized windows with live UI structure.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "under": {
+          "title": "Under",
+          "type": "string"
+        },
+        "limit": {
+          "default": 80,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "max_depth": {
+          "default": 3,
+          "title": "Max Depth",
+          "type": "integer"
+        },
+        "max_size": {
+          "default": 1280,
+          "title": "Max Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "under"
+      ],
+      "title": "ui_visualizeArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ui_wait_change",
+    "description": "Wait up to ten seconds for a scoped structural UI revision to change, with bounded polling. Does not compare editable values or pixels. Returns the latest scene; incomplete scopes cannot prove absence or full UI stability.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "under": {
+          "title": "Under",
+          "type": "string"
+        },
+        "previous_revision": {
+          "title": "Previous Revision",
+          "type": "string"
+        },
+        "timeout": {
+          "default": 5,
+          "title": "Timeout",
+          "type": "number"
+        },
+        "limit": {
+          "default": 80,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "max_depth": {
+          "default": 3,
+          "title": "Max Depth",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "under",
+        "previous_revision"
+      ],
+      "title": "ui_wait_changeArguments",
       "type": "object"
     },
     "annotations": {

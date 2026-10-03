@@ -5,7 +5,7 @@ def call_ui(client, operation, arguments, timeout=5):
     if "FSMCPUI" not in client.apis:
         client.rpc("discover")
     if not any(op["name"] == operation for op in client.apis.get("FSMCPUI", {}).get("ops", [])):
-        raise ValueError("This viewer lacks bounded FSMCPUI reads. Use ui_map and exact ui_read, or the separate builder.2 viewer.")
+        raise ValueError("This viewer lacks FSMCPUI." + operation + ". Use capability discovery and the compatible development build; no desktop-input fallback was attempted.")
     result = client.call("FSMCPUI", operation, arguments, expect_reply=True, timeout=timeout)
     if not isinstance(result, dict) or result.get("schema_version") != 1:
         raise ValueError("Unsupported FSMCPUI response schema")
