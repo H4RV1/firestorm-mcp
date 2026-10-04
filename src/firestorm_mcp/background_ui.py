@@ -17,13 +17,14 @@ BACKGROUND_READS = frozenset({
     'connection_status', 'builder_capabilities', 'assets_status', 'object_search',
     'object_selection', 'object_linkset', 'object_faces', 'script_sessions', 'script_read',
     'ui_map', 'ui_task', 'ui_tree', 'ui_read', 'ui_rows', 'ui_scene', 'ui_visualize',
-    'ui_capture', 'ui_wait_change', 'background_status', 'asset_inspect',
+    'ui_capture', 'ui_wait_change', 'background_status', 'asset_inspect', 'assets_file_inspect',
 })
 BACKGROUND_WRITES = frozenset({
     'script_write', 'object_select', 'object_link_plan', 'object_link_apply', 'material_face_plan',
     'material_face_apply', 'assets_list_inventory', 'assets_search_folders',
     'assets_create_folder', 'assets_trash_empty_folder', 'assets_upload_sound',
     'assets_create_notecard', 'assets_job', 'assets_request', 'assets_cancel', 'assets_reconcile',
+    'assets_prepare_texture', 'assets_prepare_material', 'assets_commit_upload',
 })
 
 

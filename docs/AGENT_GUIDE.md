@@ -97,7 +97,17 @@ its text remains UI evidence, not proof of simulator execution.
 
 For source selection/commit, tabs, checkbox keys and LOD comparisons, read the [importer procedure](../skills/firestorm-mesh-preview/references/importer.md). It records the tested Home/Return and Space sequences; do not replace missing APIs with unbound keys.
 
-Native pickers require `connection_status.local_platform.native_file_dialogs:true`. Otherwise arrange manual selection and inspect the importer afterward. Check which workflow opened the picker: texture/sound/animation selection can advance toward upload.
+For textures and PBR materials prefer [direct file uploads](FILE_UPLOADS.md):
+`assets_file_inspect` -> `assets_prepare_texture`/`assets_prepare_material` ->
+`assets_job` -> explicitly authorized `assets_commit_upload`. Require native
+`prepareUpload`/`commitUpload` support. This path never opens a picker.
+
+Windows file pickers are outside XUI; never search for their filename field with
+`ui_find` or `ui_tree`. The legacy `native_file_dialogs`/`native_file_choose`
+adapter requires `connection_status.local_platform.native_file_dialogs:true`
+and a recognized English Open dialog. Otherwise arrange manual selection.
+This fallback is not background-only: the OS dialog may take focus. Verify the
+originating workflow and resulting import; selection alone does not prove upload.
 
 ## Coordinates and images
 

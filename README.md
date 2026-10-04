@@ -4,7 +4,11 @@
 
 [Download](#download) · [Install](#install) · [Tools](docs/TOOLS.md) · [Agent guide](docs/AGENT_GUIDE.md) · [Contribute](CONTRIBUTING.md)
 
-**0.3.0a3+builder.4 · Local development version · MIT**
+**0.3.0a3+builder.5 · Local development version · MIT**
+
+Builder.5 adds [direct local texture and PBR material uploads](docs/FILE_UPLOADS.md):
+no file picker, separate preparation and explicit cost approval, tracked commits
+and verified inventory results. Live upload acceptance remains pending.
 
 Builder.4 adds [bounded screenshot transfer and helper recovery](docs/CONNECTION_RECOVERY.md),
 with private disconnect diagnostics. The new native build is staged separately;
@@ -88,9 +92,9 @@ Automated tests use simulated viewers. They do not certify live desktop control.
 | Settings and events | Read/change viewer settings, subscribe to events and coordinate agents through control leases. |
 | Live viewer APIs | Discover additional operations, including teleport, appearance, gestures and chat, through `viewer_call`. |
 
-This development server has **72 workflow tools**, including three native object tools and 19 asset/inventory tools that require their respective custom viewer extensions. Stock Firestorm **7.2.4.80712** exposed **94 further operations across 18 APIs**. Availability varies by viewer and login state; discovery is not test coverage.
+This development server has **93 workflow tools**. Native builder and asset operations require their respective custom viewer extensions; local file inspection does not. Stock Firestorm **7.2.4.80712** exposed **94 further operations across 18 APIs**. Availability varies by viewer and login state; discovery is not test coverage.
 
-Generated configuration uses the **compact** profile: 72 listed tools, with discovered operations available through `viewer_call`. The `all` profile also lists those operations individually after refresh. Both profiles have the same authority.
+Generated configuration uses the **compact** profile: 93 listed tools, with discovered operations available through `viewer_call`. The `all` profile also lists those operations individually after refresh. Both profiles have the same authority.
 
 [Tool reference](docs/TOOLS.md) · [Input schemas](docs/tool-catalog.json) · [MCP compatibility](docs/COMPATIBILITY.md)
 

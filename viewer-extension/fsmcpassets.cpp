@@ -22,6 +22,10 @@
 #include "lltoolgrab.h"
 #include "llselectmgr.h"
 #include "llnotecard.h"
+#include "llimagepng.h"
+#include "llimagej2c.h"
+#include "llgltfmaterial.h"
+#include "tinygltf/tiny_gltf.h"
 #include "message.h"
 #include "lleventapi.h"
 #include "lleventcoro.h"
@@ -46,7 +50,7 @@ constexpr size_t CHUNK = 48 * 1024;
 constexpr size_t MAX_JOBS = 128;
 constexpr size_t MAX_ROWS = 10000;
 const char* CAPS[] = {"FetchInventoryDescendents2", "CreateInventoryCategory", "NewFileAgentInventory",
-    "UpdateNotecardAgentInventory", "RequestTaskInventory"};
+    "UpdateNotecardAgentInventory", "UpdateMaterialAgentInventory", "RequestTaskInventory"};
 double now() { return LLFrameTimer::getTotalSeconds(); }
 struct Failure : std::runtime_error {
     std::string code;
@@ -78,6 +82,12 @@ struct Job {
     double created = now(), deadline = now() + 180;
 };
 struct Stage { std::string bytes, lease; double expires = now() + 120; };
+struct PreparedUpload {
+    std::string bytes, lease, generation;
+    LLSD args, body;
+    int cost = -1, width = 0, height = 0;
+    double expires = now() + 300;
+};
 struct Watch { LLUUID object; std::string lease, generation; double expires; int cursor = 0; std::deque<LLSD> events; };
 
 
@@ -141,6 +151,7 @@ private:
     int mVerifiedFee = -1;
     std::map<std::string, std::shared_ptr<Job>> mJobs;
     std::map<std::string, Stage> mStages;
+    std::map<std::string, PreparedUpload> mUploads;
     std::map<std::string, Watch> mWatches;
     std::map<LLUUID, LLSD> mProperties;
     bool mActive = false;
@@ -170,6 +181,9 @@ private:
         if (identity != mIdentity) { mIdentity = identity; mGeneration = LLUUID::generateNewID().asString(); mWatches.clear(); mProperties.clear(); }
         for (auto i = mStages.begin(); i != mStages.end();) {
             if (now() > i->second.expires) i = mStages.erase(i); else ++i;
+        }
+        for (auto i = mUploads.begin(); i != mUploads.end();) {
+            if (now() > i->second.expires || i->second.generation != mGeneration) i = mUploads.erase(i); else ++i;
         }
         for (auto i = mWatches.begin(); i != mWatches.end();) {
             if (now() > i->second.expires || now() > mLeaseUntil || i->second.lease != mLease) i = mWatches.erase(i); else ++i;
@@ -207,7 +221,10 @@ private:
         for (auto cap : CAPS) supported[cap] = ready() && !gAgent.getRegion()->getCapability(cap).empty();
         s["capabilities"] = supported; s["operations"] = LLSD::emptyArray();
         for (auto op : {"listInventory","searchFolders","createFolder","trashEmptyFolder","uploadSound","createNotecard",
-                        "objectInfo","taskInventory","deliverItem","touch","dialogReply","reconcile"}) s["operations"].append(op);
+                        "objectInfo","taskInventory","deliverItem","touch","dialogReply","reconcile", "prepareUpload", "commitUpload"}) s["operations"].append(op);
+        s["fileUploads"] = LLSD().with("version", 1).with("payloadBytes", (int)MAX_AUDIO)
+            .with("preferredChunkBytes", 8192).with("preparedUploads", 4).with("preparationSeconds", 300)
+            .with("textureMaxDimension", 2048).with("pickerRequired", false);
         return s;
     }); }
     void lease(const LLSD& r) { safe(r, [&] {
@@ -256,10 +273,10 @@ private:
         auto j = std::make_shared<Job>(); j->id = LLUUID::generateNewID().asString(); j->request = req; j->fingerprint = fp;
         j->args = r["arguments"]; j->kind = r["kind"].asString(); j->expected = r["expected"]; j->lease = mLease;
         check(*j, true);
-        if (j->kind == "uploadSound") {
+        if (j->kind == "uploadSound" || j->kind == "prepareUpload") {
             auto stage = mStages.find(j->args["stageId"].asString());
             require(stage != mStages.end() && stage->second.lease == mLease && now() < stage->second.expires,
-                "stage_missing", "A complete sound stage is required.");
+                "stage_missing", "A complete payload stage is required.");
             j->bytes = std::move(stage->second.bytes); mStages.erase(stage);
         }
         mJobs.emplace(j->id, j); mQueue.push_back(j);
@@ -272,7 +289,8 @@ private:
         require(i != mJobs.end(), "job_missing", "Job not retained; use durable reconciliation."); return describe(*i->second); }); }
     void cancel(const LLSD& r) { safe(r, [&] { activeLease(r); auto i = mJobs.find(r["jobId"].asString());
         require(i != mJobs.end(), "job_missing", "Job not retained.");
-        require(i->second->lease == mLease, "lease_required", "Job belongs to another lease."); i->second->cancelled = true; return describe(*i->second); }); }
+        require(i->second->lease == mLease, "lease_required", "Job belongs to another lease."); i->second->cancelled = true;
+        mUploads.erase(i->second->id); return describe(*i->second); }); }
     void drain() {
         llcoro::suspendUntilNextFrame(); // return submit acknowledgement before work begins
         while (!mQueue.empty()) {
@@ -336,6 +354,8 @@ private:
     LLSD createFolder(Job& j);
     LLSD trashFolder(Job& j);
     LLSD upload(Job& j, bool sound);
+    LLSD prepareUpload(Job& j);
+    LLSD commitUpload(Job& j);
     LLSD objectInfo(Job& j, LLUUID id);
     LLSD taskInventory(Job& j, LLUUID id);
     LLSD deliver(Job& j);
@@ -508,6 +528,138 @@ LLSD Assets::verifyItem(Job& j, LLUUID folder, LLUUID id, LLUUID asset, const st
         llcoro::suspendUntilTimeout(.5f); check(j);
     }
     throw Failure("item_unconfirmed", "Upload was acknowledged but fresh inventory has not confirmed its item and asset.");
+}
+
+LLSD Assets::prepareUpload(Job& j) {
+    require(grid() == "agni" || grid() == "aditi", "unsupported_grid", "Direct file uploads currently support Second Life grids.");
+    require(mUploads.size() < 4, "preparation_limit", "Four upload preparations are already retained; cancel or let them expire.");
+    boundedText(j.args["name"], 63); boundedText(j.args["description"], 255);
+    LLUUID folder = uuid(j.args["folderId"]); folderInfo(j, folder);
+    const std::string type = j.args["assetType"].asString();
+    require(type == "texture" || type == "material", "invalid_request", "Expected texture or material.");
+    PreparedUpload p; p.args = j.args; p.args.erase("stageId"); p.lease = j.lease;
+    p.generation = mGeneration;
+    if (type == "texture") {
+        // The worker owns only copied immutable bytes; no viewer/global objects.
+        auto encoded = std::async(std::launch::async, [bytes = std::move(j.bytes)] {
+            LLPointer<LLImagePNG> png = new LLImagePNG;
+            require(!bytes.empty() && bytes.size() <= MAX_AUDIO && png->allocateData((S32)bytes.size()),
+                "invalid_image", "Invalid PNG payload.");
+            memcpy(png->getData(), bytes.data(), bytes.size());
+            require(png->updateData(), "invalid_image", "Invalid PNG header.");
+            const int w = png->getWidth(), h = png->getHeight();
+            require(w >= 4 && h >= 4 && w <= 2048 && h <= 2048 && !(w & (w - 1)) && !(h & (h - 1)),
+                "invalid_image", "Use power-of-two dimensions from 4 to 2048.");
+            LLPointer<LLImageRaw> raw = new LLImageRaw;
+            require(png->decode(raw, 0) && (raw->getComponents() == 3 || raw->getComponents() == 4),
+                "invalid_image", "Expected decoded RGB or RGBA.");
+            LLPointer<LLImageJ2C> j2c = new LLImageJ2C;
+            require(j2c->encode(raw, 0.f) && j2c->getDataSize() > 0 && j2c->getDataSize() <= (int)MAX_AUDIO,
+                "invalid_image", "JPEG2000 encoding failed or exceeded the payload limit.");
+            return std::make_tuple(std::string((char*)j2c->getData(), j2c->getDataSize()), w, h);
+        });
+        while (encoded.wait_for(std::chrono::seconds(0)) != std::future_status::ready) llcoro::suspendUntilNextFrame();
+        auto value = encoded.get(); check(j, true);
+        p.bytes = std::move(std::get<0>(value)); p.width = std::get<1>(value); p.height = std::get<2>(value);
+        int estimate = LLAgentBenefitsMgr::current().getTextureUploadCost(p.width, p.height);
+        require(estimate >= 0, "cost_unknown", "Viewer texture cost is unknown.");
+        p.body = LLSD().with("folder_id", folder).with("asset_type", "texture").with("inventory_type", "texture")
+            .with("name", j.args["name"]).with("description", j.args["description"]).with("next_owner_mask", (int)PERM_ALL)
+            .with("group_mask", 0).with("everyone_mask", 0).with("expected_upload_cost", estimate);
+        j.phase = "quoting";
+        LLSD quote = http(j, cap(j, "NewFileAgentInventory"), p.body);
+        require(quote["state"].asString() == "upload" && quote["upload_price"].isInteger() && quote["upload_price"].asInteger() >= 0,
+            "quote_invalid", "Server did not provide an integer texture upload price.");
+        p.cost = quote["upload_price"].asInteger();
+    } else {
+        cap(j, "UpdateMaterialAgentInventory");
+        require(!j.bytes.empty() && j.bytes.size() <= 16384, "invalid_material", "Expected bounded material JSON.");
+        // Never allow the native glTF parser to read files or decode embedded images.
+        tinygltf::TinyGLTF loader;
+        tinygltf::FsCallbacks fs;
+        fs.FileExists = [](const std::string&, void*) { return false; };
+        fs.ExpandFilePath = [](const std::string& p, void*) { return p; };
+        fs.ReadWholeFile = [](std::vector<unsigned char>*, std::string*, const std::string&, void*) { return false; };
+        fs.WriteWholeFile = [](std::string*, const std::string&, const std::vector<unsigned char>&, void*) { return false; };
+        fs.GetFileSizeInBytes = [](size_t*, std::string*, const std::string&, void*) { return false; };
+        fs.user_data = nullptr;
+        std::string warning, failure;
+        require(loader.SetFsCallbacks(fs, &failure), "invalid_material", "Could not restrict material parser filesystem access.");
+        loader.SetImageLoader([](tinygltf::Image*, const int, std::string*, std::string*, int, int, const unsigned char*, int, void*) { return false; }, nullptr);
+        tinygltf::Model model;
+        require(loader.LoadASCIIFromString(&model, &failure, &warning, j.bytes.c_str(), (unsigned int)j.bytes.size(), "") &&
+            model.materials.size() == 1 && model.images.size() <= 4 && model.textures.size() <= 4 && model.buffers.empty(),
+            "invalid_material", "Expected one normalized material with UUID texture references.");
+        for (const auto& image : model.images) uuid(LLSD(image.uri));
+        LLGLTFMaterial mat; mat.setFromModel(model, 0); mat.sanitizeAssetMaterial();
+        std::string json = mat.asJSON();
+        require(json.size() <= LLGLTFMaterial::MAX_ASSET_LENGTH, "invalid_material", "Serialized material exceeds viewer asset limit.");
+        LLSD asset = LLSD().with("version", LLGLTFMaterial::ASSET_VERSION).with("type", LLGLTFMaterial::ASSET_TYPE).with("data", json);
+        std::ostringstream stream; LLSDSerialize::serialize(asset, stream, LLSDSerialize::LLSD_BINARY);
+        p.bytes = stream.str(); p.cost = 0;
+    }
+    check(j, true); p.expires = now() + 300;
+    LLSD result = LLSD().with("uploadId", j.id).with("assetType", type).with("cost", p.cost)
+        .with("costSource", type == "texture" ? "server_quote" : "viewer_material_creation")
+        .with("serverQuote", type == "texture").with("expiresInSeconds", 300).with("expiresAtViewerSeconds", p.expires)
+        .with("payloadSha256", j.args["payloadSha256"]).with("sourceSha256", j.args["sourceSha256"])
+        .with("folderId", folder).with("name", j.args["name"]).with("description", j.args["description"])
+        .with("width", p.width).with("height", p.height).with("assetBytes", (int)p.bytes.size())
+        .with("uploaded", false).with("textureReferencesVerified", false);
+    mUploads.emplace(j.id, std::move(p)); return result;
+}
+
+LLSD Assets::commitUpload(Job& j) {
+    check(j, true);
+    // Consume BEFORE any asynchronous boundary. A second request cannot reuse it.
+    PreparedUpload p;
+    const char* rejection = fsmcp::claimUpload(mUploads, j.args["uploadId"].asString(), j.lease, mGeneration, now(),
+        j.args["approvedCost"].isInteger() ? std::optional<int>(j.args["approvedCost"].asInteger()) : std::nullopt, p);
+    require(!rejection, rejection ? rejection : "invalid_request", "Preparation must be unused, unexpired, owned by this lease/session, with exactly the approved cost.");
+    j.args = p.args;
+    const std::string type = j.args["assetType"].asString();
+    LLUUID folder = uuid(j.args["folderId"]); folderInfo(j, folder);
+    LLSD listing = fetch(j, folder);
+    for (const auto& row : llsd::inArray(listing["items"])) require(row["description"] != j.args["description"],
+        "marker_conflict", "Description marker already exists; reconcile instead of uploading again.");
+    LLUUID item; LLSD quote;
+    if (type == "texture") {
+        p.body["expected_upload_cost"] = p.cost;
+        check(j, true); j.phase = "quoting";
+        quote = http(j, cap(j, "NewFileAgentInventory"), p.body);
+        require(fsmcp::approvedQuote(p.cost, quote["upload_price"].isInteger() ? std::optional<int>(quote["upload_price"].asInteger()) : std::nullopt),
+            "cost_changed", "Server quote changed; no texture bytes were submitted. Prepare again for review.");
+    } else {
+        std::string url = cap(j, "UpdateMaterialAgentInventory");
+        auto created = std::make_shared<LLUUID>(); std::weak_ptr<Job> pending = mJobs.at(j.id);
+        LLPointer<LLInventoryCallback> cb = new LLBoostFuncInventoryCallback([created, pending](const LLUUID& id) {
+            *created = id; if (auto job = pending.lock()) if (id.notNull()) job->acknowledged["itemId"] = id;
+        });
+        check(j, true); j.submitted = true; j.phase = "creating_item";
+        create_inventory_item(gAgent.getID(), gAgent.getSessionID(), folder, LLTransactionID::tnull, j.args["name"].asString(),
+            j.args["description"].asString(), LLAssetType::AT_MATERIAL, LLInventoryType::IT_MATERIAL, NO_INV_SUBTYPE, PERM_ALL, cb);
+        double until = now() + 25;
+        while (created->isNull() && now() < until) { llcoro::suspendUntilTimeout(.1f); check(j); }
+        require(created->notNull(), "item_unconfirmed", "Material item creation was sent but not acknowledged.");
+        item = *created; j.acknowledged["itemId"] = item;
+        auto row = find(fetch(j, folder)["items"], item);
+        require(row.isMap() && row["name"] == j.args["name"] && row["description"] == j.args["description"] &&
+            row["assetType"].asString() == "material" && row["canModify"].asBoolean(), "item_unconfirmed", "Created material identity is unconfirmed.");
+        check(j, true); quote = http(j, url, LLSD().with("item_id", item));
+        require(!quote.has("upload_price") || (quote["upload_price"].isInteger() && quote["upload_price"].asInteger() == 0),
+            "cost_changed", "Material update returned a nonzero or invalid fee; no material bytes were sent.");
+    }
+    require(quote["state"].asString() == "upload", "quote_invalid", "Server did not provide an upload invitation.");
+    check(j, true);
+    LLSD completed = http(j, quote["uploader"].asString(), LLSD(), false, &p.bytes);
+    require(!completed.has("upload_price") || (completed["upload_price"].isInteger() && completed["upload_price"].asInteger() == p.cost),
+        "cost_changed_after_submit", "Server completion price differs; inspect the acknowledged IDs before continuing.");
+    require(completed["state"].asString() == "complete", "upload_unconfirmed", "Upload completion was not acknowledged.");
+    LLUUID asset = uuid(completed["new_asset"]);
+    if (type == "texture") item = uuid(completed["new_inventory_item"]);
+    j.acknowledged["itemId"] = item; j.acknowledged["assetId"] = asset;
+    return verifyItem(j, folder, item, asset, type).with("assetType", type).with("approvedCost", p.cost)
+        .with("sourceSha256", p.args["sourceSha256"]).with("payloadSha256", p.args["payloadSha256"]);
 }
 
 LLSD Assets::upload(Job& j, bool sound) {
@@ -716,12 +868,14 @@ LLSD Assets::reconcile(Job& j) {
             "outcome_unknown", "Acknowledged folder has not been confirmed; absence does not authorize replay.");
         return row.with("requestedId", a["folderId"]).with("folderIdMatchesRequested", acknowledged == a["folderId"].asUUID()).with("freshness", "server");
     }
-    if (kind == "uploadSound" || kind == "createNotecard") {
+    if (kind == "uploadSound" || kind == "createNotecard" || kind == "commitUpload") {
         auto listing = fetch(j, uuid(a["folderId"])); LLSD match; int count = 0;
         for (auto& item : llsd::inArray(listing["items"])) if (item["description"] == a["description"]) { match = item; ++count; }
-        require(count == 1 && match["name"] == a["name"] && match["assetType"].asString() == (kind == "uploadSound" ? "sound" : "notecard") &&
+        std::string type = kind == "commitUpload" ? a["assetType"].asString() : kind == "uploadSound" ? "sound" : "notecard";
+        require(count == 1 && match["name"] == a["name"] && match["assetType"].asString() == type &&
             match["assetId"].asUUID().notNull(), "outcome_unknown", "No unique populated item confirms the saved marker; do not replay automatically.");
         auto ack = intent["acknowledged"];
+        require(kind != "commitUpload" || ack["assetId"].asUUID().notNull(), "outcome_unknown", "Upload lacks an acknowledged asset UUID; matching names alone do not prove content completion.");
         require((!ack.has("itemId") || ack["itemId"].asUUID() == match["id"].asUUID()) &&
             (!ack.has("assetId") || ack["assetId"].asUUID() == match["assetId"].asUUID()),
             "item_conflict", "Saved acknowledgement disagrees with the marker.");
@@ -763,6 +917,8 @@ LLSD Assets::execute(Job& j) {
     if (j.kind == "createFolder") return createFolder(j);
     if (j.kind == "trashEmptyFolder") return trashFolder(j);
     if (j.kind == "uploadSound") return upload(j, true);
+    if (j.kind == "prepareUpload") return prepareUpload(j);
+    if (j.kind == "commitUpload") return commitUpload(j);
     if (j.kind == "createNotecard") return upload(j, false);
     if (j.kind == "objectInfo") return objectInfo(j, uuid(j.args["objectId"]));
     if (j.kind == "taskInventory") return taskInventory(j, uuid(j.args["objectId"]));

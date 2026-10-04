@@ -15,7 +15,7 @@ class ExpectedSession(TypedDict):
 
 MAX_AUDIO = 8 * 1024 * 1024
 CHUNK_BYTES = 48 * 1024
-WRITES = {'createFolder', 'trashEmptyFolder', 'uploadSound', 'createNotecard', 'deliverItem', 'dialogReply', 'touch'}
+WRITES = {'createFolder', 'trashEmptyFolder', 'uploadSound', 'createNotecard', 'deliverItem', 'dialogReply', 'touch', 'prepareUpload', 'commitUpload'}
 KINDS = WRITES | {'listInventory', 'searchFolders', 'objectInfo', 'taskInventory', 'reconcile'}
 
 
@@ -139,17 +139,19 @@ def validate(kind, args, expected):
         'createFolder': {'folderId', 'parentId', 'name'},
         'trashEmptyFolder': {'folderId', 'parentFolderId', 'name', 'creationRequestId'},
         'uploadSound': {'folderId', 'name', 'description', 'expectedCost', 'audioSha256'},
+        'prepareUpload': {'folderId', 'name', 'description', 'assetType', 'payloadSha256', 'sourceSha256'},
+        'commitUpload': {'preparationRequestId', 'approvedCost'},
         'createNotecard': {'folderId', 'name', 'description', 'text'},
         'deliverItem': {'folderId', 'itemId', 'objectId'}, 'objectInfo': {'objectId'},
         'taskInventory': {'objectId'}, 'touch': {'objectId', 'face'},
         'dialogReply': {'objectId', 'dialogId', 'buttonIndex', 'buttonLabel'},
         'searchFolders': {'query', 'maxResults'}, 'reconcile': {'originalRequestId'}, 'listInventory': set(),
     }[kind]
-    optional = {'listInventory': {'folderId'}, 'uploadSound': {'stageId'},
+    optional = {'listInventory': {'folderId'}, 'uploadSound': {'stageId'}, 'prepareUpload': {'stageId'},
                 'createNotecard': {'existingItemId'}, 'trashEmptyFolder': {'inspectOnly'}}.get(kind, set())
     if not required <= args.keys() or args.keys() - required - optional:
         fail('invalid_request', 'Missing or unexpected operation arguments.')
-    for key in ('folderId', 'parentId', 'parentFolderId', 'existingItemId', 'itemId', 'objectId', 'creationRequestId', 'dialogId', 'originalRequestId', 'stageId'):
+    for key in ('folderId', 'parentId', 'parentFolderId', 'existingItemId', 'itemId', 'objectId', 'creationRequestId', 'dialogId', 'originalRequestId', 'stageId', 'preparationRequestId'):
         if key in args:
             identifier(args[key])
     for key, limit in (('name', 63), ('description', 255)):
@@ -159,6 +161,15 @@ def validate(kind, args, expected):
                 fail('invalid_request', key + ' must be bounded printable UTF-8 with no pipe or surrounding whitespace.')
     if kind == 'uploadSound' and (type(args.get('expectedCost')) is not int or args['expectedCost'] != 0):
         fail('cost_not_zero', 'Only explicit expectedCost: 0 is supported.')
+    if kind == 'prepareUpload':
+        if args['assetType'] not in ('texture', 'material'):
+            fail('invalid_request', 'Only texture and material preparations are supported.')
+        for key in ('payloadSha256', 'sourceSha256'):
+            value = args[key]
+            if not isinstance(value, str) or len(value) != 64 or any(c not in '0123456789abcdef' for c in value):
+                fail('invalid_request', 'Expected a lowercase SHA256 digest.')
+    if kind == 'commitUpload' and (type(args['approvedCost']) is not int or not 0 <= args['approvedCost'] <= 2147483647):
+        fail('invalid_request', 'approvedCost must be an explicit nonnegative integer matching the prepared cost.')
     if kind == 'createNotecard':
         value = args.get('text')
         if not isinstance(value, str) or '\0' in value or len(value.encode('utf-8')) > 65536:

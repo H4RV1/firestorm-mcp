@@ -108,7 +108,7 @@ class AssetGateway:
         if op == 'submit':
             request = identifier(args.get('requestId'))
             kind, arguments, expected = args.get('kind'), dict(args.get('arguments') or {}), args.get('expected') or {}
-            if {'creationReceipt', 'intent'} & arguments.keys():
+            if {'creationReceipt', 'intent', 'uploadId'} & arguments.keys():
                 raise AssetError('reserved_field', 'Receipts and reconciliation intents are supplied by the journal.')
             # The transport stage UUID is not part of logical identity. SHA256 is verified below.
             logical = {k: v for k, v in arguments.items() if k != 'stageId'}
@@ -128,15 +128,31 @@ class AssetGateway:
                 if old.get('state') == 'succeeded':
                     return self.saved(old)
                 arguments['intent'] = {key: old.get(key, {}) for key in ('kind', 'arguments', 'expected', 'acknowledged')}
+                if old['kind'] == 'commitUpload':
+                    preparation = self.journal.get(old['arguments']['preparationRequestId'])
+                    if not preparation or preparation['kind'] != 'prepareUpload':
+                        raise AssetError('preparation_missing', 'Saved preparation is required for reconciliation.')
+                    arguments['intent']['arguments'] = preparation['arguments']
+            if kind == 'commitUpload':
+                preparation = self.journal.get(arguments['preparationRequestId'])
+                if not preparation or preparation['kind'] != 'prepareUpload' or preparation.get('state') != 'succeeded':
+                    raise AssetError('preparation_missing', 'Poll a successful preparation before committing.')
+                if preparation['expected'] != expected:
+                    raise AssetError('session_changed', 'Preparation belongs to another viewer session.')
+                quote = preparation.get('result', {})
+                if type(quote.get('cost')) is not int or quote['cost'] != arguments['approvedCost']:
+                    raise AssetError('cost_mismatch', 'approvedCost must exactly match the prepared cost.')
+                arguments['uploadId'] = identifier(quote.get('uploadId'))
             if kind == 'trashEmptyFolder':
                 receipt = self.journal.get(identifier(arguments.get('creationRequestId')))
                 if not receipt or receipt.get('state') != 'succeeded' or receipt['kind'] != 'createFolder':
                     raise AssetError('creation_unverified', 'Cleanup requires a journaled confirmed folder creation.')
                 arguments['creationReceipt'] = {key: receipt.get(key, {}) for key in ('kind', 'arguments', 'expected', 'result')}
-            if kind == 'uploadSound':
+            if kind in ('uploadSound', 'prepareUpload'):
                 entry = self.stages.get(arguments.get('stageId'))
-                if not entry or entry['owner'] != lease or entry['expires'] <= time.monotonic() or not entry['size'] or entry['digest'].hexdigest() != arguments.get('audioSha256'):
-                    raise AssetError('stage_mismatch', 'Complete staged audio does not match the declared SHA256.')
+                digest_key = 'audioSha256' if kind == 'uploadSound' else 'payloadSha256'
+                if not entry or entry['owner'] != lease or entry['expires'] <= time.monotonic() or not entry['size'] or entry['digest'].hexdigest() != arguments.get(digest_key):
+                    raise AssetError('stage_mismatch', 'Complete staged bytes do not match the declared SHA256.')
             if kind in WRITES:
                 if not self.journal:
                     raise AssetError('journal_unavailable', 'A durable bridge journal is required for mutations.')

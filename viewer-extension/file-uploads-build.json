@@ -1,0 +1,20 @@
+{
+  "version": "0.3.0a3+builder.5",
+  "native_commit": "3e19987cc968ab1bff807144e50f156432d5a7dd",
+  "native_parent": "a7f0a1db36071553e15cdd116e58ceafe84ab5b9",
+  "executable_sha256": "bf9d6e78eb9a0a1aa86641eaf4994930d1ce5081f2a765c23c68e56becb46bad",
+  "source_sha256": {
+    "fsmcpassets.cpp": "159edc5c6fca3d5c1838ce48bf8b9ab792c048c43c5cb5838f4773245e305d1e",
+    "fsmcpassetpolicy.h": "72b6bb19b449f5ebc49a5cb59f28ab141944e254bf19deadd97bceb31db69149"
+  },
+  "compiled": true,
+  "staged": true,
+  "isolated_python_tests": 278,
+  "native_asset_policy": "passed",
+  "offline_wheel": "passed",
+  "live_texture_upload_verified": false,
+  "live_material_upload_verified": false,
+  "live_fee_verified": false,
+  "live_no_focus_verified": false,
+  "running_viewer_preserved": true
+}

@@ -113,3 +113,10 @@ Next native features are object inventory, permission-aware script retrieval,
 and asynchronous compile/save jobs with diagnostics. Transform/material writes
 should follow with expected-state checks and explicit readback. Never add
 arbitrary C++ execution as a shortcut.
+
+## Builder.5 direct file upload upgrade
+
+Use `scripts/apply_file_uploads.py CHECKOUT --dry-run` then apply against the
+recorded Builder.4 sources. Fresh asset integrations include the current sources.
+Build and stage a new directory; no running viewer is updated. See
+[the direct upload contract and pending live acceptance](FILE_UPLOADS.md).

@@ -2,7 +2,7 @@
 
 Generated from the current workflow definitions and historical Firestorm 7.2.4.80712 API discovery. Refresh the running viewer before relying on a dynamic operation. Counts are not test coverage.
 
-89 workflow tools; 94 historical viewer operations.
+93 workflow tools; 94 historical viewer operations.
 
 ## Workflow tools
 
@@ -68,6 +68,10 @@ Generated from the current workflow definitions and historical Firestorm 7.2.4.8
 | `material_face_apply` | Apply one material_face_plan under a lease after native session/permissions/texture-entry revalidation. The plan is consumed before dispatch. Returns local preview plus dispatched status; reread object_faces and verify simulator/rendered effects independently. Never blindly replay. |
 | `viewer_latency` | Measure 1-20 sequential bridge plus viewer event-loop ping round trips in milliseconds. No world mutation. Does not measure simulator, asset loading or script compile latency. |
 | `assets_status` | Negotiate FSMCPAssets v1: actual login/region readiness, non-secret generation, nullable sound fee, limits and capabilities. Does not log in or launch a viewer. |
+| `assets_file_inspect` | Inspect a local texture or glTF/GLB material and list its image dependencies. No picker, network, upload or viewer input. Paths must be absolute. |
+| `assets_prepare_texture` | Prepare a local image or a glTF/GLB dependency image for background texture upload. Accepts PNG/JPEG/BMP/TGA, power-of-two dimensions 4–2048, no silent resize. Encodes and obtains a server quote without sending asset bytes or spending. Poll assets_job, then explicitly commit the quoted cost. No file picker. |
+| `assets_prepare_material` | Prepare one PBR material from local glTF/GLB without a picker. texture_bindings maps image indices (string keys) to already uploaded texture asset UUIDs. Missing dependencies must be uploaded separately; never silently spends on textures. Poll assets_job then commit. Material creation costs zero by the viewer workflow, not a texture server quote. |
+| `assets_commit_upload` | Commit one prepared texture/material upload using a NEW durable request_id, its preparation_request_id and the exact approved_cost. Requires task spending authority, the same active lease/session and an unexpired single-use preparation. May spend L$. Poll assets_job for server-confirmed inventory/asset IDs. Never replay an uncertain commit. |
 | `assets_list_inventory` | Submit a fresh server inventory read. Requires a bounded lease and expected avatarId/grid/generation. Poll assets_job; incomplete replies never prove absence. |
 | `assets_search_folders` | Submit bounded cached folder search. Results are explicitly incomplete; browse each candidate for fresh verification. |
 | `assets_create_folder` | Create an owned child folder with durable request identity. Returns a job; confirmed result uses the actual server UUID, which may differ from folder_id. No same-name adoption. |

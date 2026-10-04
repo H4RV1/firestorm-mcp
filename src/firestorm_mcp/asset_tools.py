@@ -36,6 +36,56 @@ def register_asset_tools(tools):
     def assets_status():
         return native('status', {})
 
+    @reg('Inspect a local texture or glTF/GLB material and list its image dependencies. No picker, network, upload or viewer input. Paths must be absolute.', True)
+    def assets_file_inspect(filename: str, material_index: int = 0):
+        from .file_assets import inspect_upload
+        return inspect_upload(filename, material_index)
+
+    def prepare_file(request_id, expected, folder_id, name, description, data, metadata, asset_type):
+        args = dict(folderId=folder_id, name=name, description=description, assetType=asset_type,
+                    sourceSha256=metadata['sourceSha256'], payloadSha256=metadata['payloadSha256'])
+        validate('prepareUpload', args, expected); identifier(request_id)
+        status = native('status', {})
+        if 'prepareUpload' not in status.get('operations', []):
+            return dict(schema_version=1, ok=False, failure=dict(code='unsupported_viewer',
+                message='Direct file uploads require the Builder.5 native extension and updated helper.', unknownOutcome=False))
+        previous = native('request', {'requestId': request_id})
+        if previous.get('ok'):
+            return submit('prepareUpload', request_id, expected, args)
+        if previous.get('failure', {}).get('code') != 'request_missing':
+            return previous
+        stage_id = str(uuid4())
+        try:
+            # Smaller than the legacy sound chunks: keep each pipe message bounded.
+            for offset in range(0, len(data), 8192):
+                result = native('stage', dict(stageId=stage_id, offset=offset,
+                    data={'$binary_base64': base64.b64encode(data[offset:offset+8192]).decode('ascii')}))
+                if not result.get('ok'):
+                    return result
+            return submit('prepareUpload', request_id, expected, dict(args, stageId=stage_id))
+        finally:
+            try: native('discard', {'stageId': stage_id})
+            except Exception: pass
+
+    @reg('Prepare a local image or a glTF/GLB dependency image for background texture upload. Accepts PNG/JPEG/BMP/TGA, power-of-two dimensions 4–2048, no silent resize. Encodes and obtains a server quote without sending asset bytes or spending. Poll assets_job, then explicitly commit the quoted cost. No file picker.')
+    def assets_prepare_texture(request_id: str, expected: ExpectedSession, folder_id: str, name: str,
+                               description: str, filename: str, image_index: int | None = None):
+        from .file_assets import texture_payload
+        data, metadata = texture_payload(filename, image_index)
+        return prepare_file(request_id, expected, folder_id, name, description, data, metadata, 'texture')
+
+    @reg('Prepare one PBR material from local glTF/GLB without a picker. texture_bindings maps image indices (string keys) to already uploaded texture asset UUIDs. Missing dependencies must be uploaded separately; never silently spends on textures. Poll assets_job then commit. Material creation costs zero by the viewer workflow, not a texture server quote.')
+    def assets_prepare_material(request_id: str, expected: ExpectedSession, folder_id: str, name: str,
+                                description: str, filename: str, texture_bindings: dict[str, str], material_index: int = 0):
+        from .file_assets import material_payload
+        data, metadata = material_payload(filename, material_index, texture_bindings)
+        return prepare_file(request_id, expected, folder_id, name, description, data, metadata, 'material')
+
+    @reg('Commit one prepared texture/material upload using a NEW durable request_id, its preparation_request_id and the exact approved_cost. Requires task spending authority, the same active lease/session and an unexpired single-use preparation. May spend L$. Poll assets_job for server-confirmed inventory/asset IDs. Never replay an uncertain commit.')
+    def assets_commit_upload(request_id: str, expected: ExpectedSession, preparation_request_id: str, approved_cost: int):
+        return submit('commitUpload', request_id, expected,
+                      dict(preparationRequestId=preparation_request_id, approvedCost=approved_cost))
+
     @reg('Submit a fresh server inventory read. Requires a bounded lease and expected avatarId/grid/generation. Poll assets_job; incomplete replies never prove absence.', True)
     def assets_list_inventory(request_id: str, expected: ExpectedSession, folder_id: str | None = None):
         return submit('listInventory', request_id, expected, {'folderId': folder_id} if folder_id else {})

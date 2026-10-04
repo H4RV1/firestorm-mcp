@@ -1,6 +1,10 @@
 # Asset and inventory integration, contract v1
 
-`FSMCPAssets` and the 19 `assets_*` MCP tools use the avatar already logged in
+Builder.5 extends this contract with [direct texture/PBR file uploads](FILE_UPLOADS.md).
+Discover `prepareUpload`/`commitUpload`; older native viewers do not support them.
+The original sound path retains its zero-cost restriction.
+
+`FSMCPAssets` and the original 19 `assets_*` MCP tools use the avatar already logged in
 through the viewer. This is a development implementation, compiled and tested
 in isolation. **Uploads, inventory mutations and object interactions have not
 passed live simulator acceptance.** See [acceptance](ASSET_ACCEPTANCE.md).
