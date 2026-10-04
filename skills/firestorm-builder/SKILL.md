@@ -49,6 +49,13 @@ one native round trip and ambiguous runtime names are rejected. Use `ui_tree`
 for bounded runtime mounts, and `ui_rows` for visible compiler/error lists.
 Do not call raw `LLWindow.getPaths`; its legacy traversal can flood the bridge.
 
+For object contents, a visible panel can have no inventory tree after a selection
+change. Before opening an item with a key, verify its live `task inventory` tree
+and intended row in a scoped read. Avoid Enter on the generic contents container.
+An `inventory not ready` or focus-rejected error means no key was dispatched;
+reinspect selection/tree before any further input. Earlier development viewers
+can crash on this empty-tree path. This guidance does not replace the native fix.
+
 For scripts, register the intended editor through its External Edit control,
 then `script_sessions` -> `script_read` -> `script_write` with the prior SHA256.
 Never write an arbitrary temp file. Local writes trigger Firestorm's watcher but

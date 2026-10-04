@@ -1,0 +1,19 @@
+{
+  "date_utc": "2026-10-04",
+  "native_parent": "d1a592c24b9d6fbd6add5159440bb66057c15375",
+  "native_commit": "a085f5e22d6388620652f5a6ff08f21fc2d1ef5a",
+  "native_commit_note": "Local only; executable compiled from these source changes before committing. Identify by hash, not displayed build number.",
+  "package_version": "0.3.0a3+builder.3",
+  "viewer_version": "7.2.4.4",
+  "platform": "Windows x64",
+  "compiled": true,
+  "staged": true,
+  "previous_material_drop_fix_included": true,
+  "isolated_python_tests": 235,
+  "actual_native_methods_regression": "passed",
+  "offline_wheel_check": "passed",
+  "builder_skill_validation": "passed",
+  "live_startup_verified": false,
+  "live_in_world_inventory_verified": false,
+  "executable_sha256": "6dd4f5d519151fe6822c8994294f0adeaae7877dfc2ff84253f29321d517d6f9"
+}

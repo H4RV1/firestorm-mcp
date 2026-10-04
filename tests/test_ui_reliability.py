@@ -76,6 +76,21 @@ def test_keys_target_both_events_and_return_selection_readback(tmp_path):
     assert result["verified_effect"] is False
 
 
+def test_native_key_rejection_stops_dispatch_without_retry(tmp_path):
+    tools = Tools(tmp_path)
+    calls = []
+    def reply(api, op, args, **kw):
+        calls.append(op)
+        if op == "keyDown":
+            raise ValueError("Object inventory is not ready; no key dispatched")
+        return {"visible_chain": True, "enabled_chain": True}
+    tools.client.call = reply
+    with pytest.raises(ValueError, match="inventory is not ready"):
+        tools.call("ui_press_key", {"keysym": "Enter", "path": "/synthetic/contents"})
+    assert calls.count("keyDown") == 1
+    assert calls[-1] == "keyDown" and "keyUp" not in calls
+
+
 def test_registry_click_checks_unique_path_and_observes_effect(tmp_path):
     viewer = tmp_path / "viewer"
     xui = viewer / "skins/default/xui/en"

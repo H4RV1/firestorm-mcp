@@ -3,6 +3,8 @@
 The local [material/texture drop crash fix](../docs/MATERIAL_DROP_FIX.md) is applied
 separately with `scripts/apply_drop_guard.py` before compiling this baseline.
 It rejects invalid signed face picks; in-world drop acceptance remains pending.
+Also apply `scripts/apply_inventory_guard.py` for the separate
+[empty inventory key crash fix](../docs/INVENTORY_KEY_FIX.md).
 
 The local builder.2 source also adds `getNearby`, guarded selection/link/surface
 plans and the separate `FSMCPUI` bounded tree/control/list API. These new operations

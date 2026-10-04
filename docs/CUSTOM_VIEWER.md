@@ -47,11 +47,15 @@ python scripts/apply_viewer_extension.py D:/FirestormMCP-build/viewer --profile-
 python scripts/apply_viewer_extension.py D:/FirestormMCP-build/viewer --profile-name FirestormMCP
 python scripts/apply_drop_guard.py D:/FirestormMCP-build/viewer --dry-run
 python scripts/apply_drop_guard.py D:/FirestormMCP-build/viewer
+python scripts/apply_inventory_guard.py D:/FirestormMCP-build/viewer --dry-run
+python scripts/apply_inventory_guard.py D:/FirestormMCP-build/viewer
 ```
 
 The separate [surface drop guard](MATERIAL_DROP_FIX.md) prevents the confirmed
 invalid-face material-drop crash on this pinned baseline. Apply it to new builds
 and existing development source checkouts before recompiling.
+The [inventory key guard](INVENTORY_KEY_FIX.md) also protects cleared contents
+panels and verifies targeted LEAP keyboard focus before dispatch.
 
 Open a Visual Studio x64 Native Tools command prompt, activate the build venv,
 put CMake and Cygwin on PATH, and set these environment variables:
