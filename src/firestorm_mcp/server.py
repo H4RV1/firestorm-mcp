@@ -247,12 +247,23 @@ class Tools:
                 if lease["acquired_new"]:
                     c.rpc("release")
 
-        @reg("Check whether the local Firestorm LEAP helper is connected. Does not log in or change the viewer.", True)
+        @reg("Check whether the local Firestorm LEAP helper is connected. When disconnected, include saved historical diagnostics if available; the last operation is not proof of cause. Does not log in or change the viewer.", True)
         def connection_status():
             try:
                 result = c.rpc("status")
             except ConnectionError as exc:
                 result = {"connected": False, "reason": str(exc)}
+                try:
+                    report = c.runtime / "last-disconnect.json"
+                    if report.stat().st_size <= 4096:
+                        data = json.loads(report.read_text(encoding="utf-8"))
+                        result["last_disconnect"] = {key: data.get(key) for key in (
+                            "disconnected_at", "exception_type", "pending_results_unknown",
+                            "decode_errors", "repaired_duplicate_blocks", "last_operation",
+                            "last_operation_is_cause", "actions_replayed")}
+                        result["last_disconnect_is_historical"] = True
+                except (OSError, ValueError, AttributeError):
+                    pass
             if not c.apis:
                 self.apis, self.dynamic = {}, {}
             result["capabilities_refresh_needed"] = bool(result.get("connected") and not c.apis)

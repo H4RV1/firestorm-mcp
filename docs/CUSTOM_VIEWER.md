@@ -90,6 +90,11 @@ first test. The new profile starts without the normal viewer's saved login.
 
 ## Upgrade and acceptance
 
+For the recorded builder.3 integration, apply
+`python scripts/apply_capture_transport.py CHECKOUT --dry-run`, then without
+`--dry-run`, before rebuilding to enable [builder.4 recovery](CONNECTION_RECOVERY.md).
+This also accepts the exact current managed UI files after a fresh integration.
+
 For a newer release, create a separate source checkout at the chosen revision.
 Run the integration dry-run, inspect the diff, then apply. An anchor mismatch is
 a porting task; do not force a patch into an unfamiliar layout. Keep the API

@@ -1,4 +1,4 @@
-# Background UI — local builder.3
+# Background UI — local builder.4
 
 Agents can inspect Firestorm without taking desktop focus or moving the mouse.
 This build adds a bounded structural UI scene, a numbered schematic, and scoped
@@ -51,9 +51,14 @@ All operations are schema version 1 and capability-gated by live discovery.
   Desktop focus changes alone do not change the revision. A timeout is a bounded
   observation, not proof of overall UI stability or task completion.
 
-Native capture uses `FSMCPUI.requestCapture` / `captureResult`, with one pending
-or unconsumed result at a time. Pending requests expire after five seconds;
-completed results expire after ten seconds and are consumed on first retrieval.
+Native capture uses `FSMCPUI.requestCapture` / `captureResult` / `captureChunk`,
+with one pending or unconsumed result at a time. Pending requests expire after
+five seconds; completed results expire after 30 seconds. `captureResult` returns
+metadata with `png_transfer:"chunks_v1"` and `png_size`. `captureChunk` consumes
+at most 8192 PNG bytes at the exact next byte offset, and the last chunk removes
+the result. The Python tool enforces identity, offset, size, completion and PNG
+validation with a 25-second transfer deadline. See [recovery](CONNECTION_RECOVERY.md).
+Older native builds retain their legacy one-reply PNG/ten-second expiry behavior.
 Source crops are limited to 4,194,304 pixels, output edge to 1,600 pixels and PNG
 to 4 MiB. No capture is retained as a fallback for a later request. Failures
 report `unavailable` or a tool error; no screenshot or desktop-input fallback is

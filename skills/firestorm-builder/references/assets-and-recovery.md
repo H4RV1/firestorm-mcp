@@ -42,6 +42,11 @@ queued/running after a call returns. Inspect them before dependent work.
 
 If disconnected, read status/diagnostics and inspect saved requests. An invalid
 length prefix is terminal; guessing a new frame boundary could misassociate a
-reply. Coordinate a viewer restart only when authorized, preserving any active
-human task. New helper generation invalidates cached descriptors and old leases.
+reply. Builder.4 preserves a historical disconnect summary and its native viewer
+can restart its configured helper up to three times (roughly 2/4/8-second delays),
+without replaying any action. Check connection status for a fresh generation,
+then rediscover, reacquire and reinspect before continuing. A still-live stuck
+helper is not killed. The saved last operation does not prove the exit cause.
+Older viewers lack this recovery. Coordinate a viewer restart only when authorized,
+preserving any active human task. New helper generation invalidates cached descriptors and old leases.
 Never delete another client's lock or kill its process to take control.

@@ -25,7 +25,7 @@ def scene():
 def fake_tools(tmp_path, reply):
     tools = Tools(tmp_path)
     tools.client.apis = {'FSMCPUI': {'ops': [{'name': op} for op in
-        ('getScene', 'getContext', 'requestCapture', 'captureResult')]}}
+        ('getScene', 'getContext', 'requestCapture', 'captureResult', 'captureChunk')]}}
     calls = []
     def rpc(method, **kw):
         calls.append(method)
@@ -129,7 +129,7 @@ def test_unavailable_capture_stops_plan_and_releases(tmp_path):
     assert 'script_sessions' not in session.calls and session.calls[-1] == 'control_release'
 
 
-@pytest.mark.parametrize('op', ['requestCapture', 'captureResult'])
+@pytest.mark.parametrize('op', ['requestCapture', 'captureResult', 'captureChunk'])
 def test_capture_raw_rpc_requires_lease(channel, op):
     bridge, _, _ = channel
     bridge.call = lambda *a, **kw: pytest.fail('No dispatch without control')

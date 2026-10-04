@@ -21,6 +21,9 @@
 #include "llrender.h"
 #include "pipeline.h"
 #include "lluuid.h"
+#include "llleap.h"
+#include "lleventtimer.h"
+#include "llapp.h"
 #include <cmath>
 #include <chrono>
 #include <functional>
@@ -38,6 +41,8 @@ struct Capture
     S32 width = 0, height = 0, max_size = 1280;
     Clock::time_point expires;
     LLSD result;
+    LLSD::Binary png;
+    S32 offset = 0;
 };
 Capture capture;
 
@@ -155,8 +160,10 @@ public:
             &FSMCPUI::getScene, LLSD().with("reply", LLSD()).with("under", LLSD()));
         add("requestCapture", "Request one scoped next-frame capture. Does not render, activate, restore or move the cursor. Expires in five seconds.",
             &FSMCPUI::requestCapture, LLSD().with("reply", LLSD()).with("path", LLSD()));
-        add("captureResult", "Read/consume a requested frame. PNG <=4 MiB; expires after ten seconds. No cached frame fallback.",
+        add("captureResult", "Read frame metadata. Ready PNG uses captureChunk in <=8192-byte pieces; expires after 30 seconds.",
             &FSMCPUI::captureResult, LLSD().with("reply", LLSD()).with("capture_id", LLSD()));
+        add("captureChunk", "Consume the next bounded PNG chunk at the exact byte offset. No retries or cached frame fallback.",
+            &FSMCPUI::captureChunk, LLSD().with("reply", LLSD()).with("capture_id", LLSD()).with("offset", LLSD()));
     }
 private:
     void getContext(const LLSD& r) { Response response(context(), r); }
@@ -238,7 +245,25 @@ private:
         response["capture_id"] = capture.id;
         response["result"] = capture.result;
         response["state"] = capture.result["state"];
-        if (capture.result["state"].asString() != "pending") capture = Capture();
+        if (capture.result["state"].asString() == "unavailable") capture = Capture();
+    }
+    void captureChunk(const LLSD& r)
+    {
+        Response response(LLSD(), r);
+        response["schema_version"] = 1;
+        if (capture.id.isNull() || LLUUID(r["capture_id"].asString()) != capture.id ||
+            Clock::now() >= capture.expires || capture.result["state"].asString() != "ready")
+        { response.error("Capture expired or unavailable"); return; }
+        if (!r["offset"].isInteger() || r["offset"].asInteger() != capture.offset)
+        { response.error("Capture offset mismatch; do not replay a consumed chunk"); return; }
+        S32 end = llmin(capture.offset + 8192, (S32)capture.png.size());
+        response["capture_id"] = capture.id;
+        response["offset"] = capture.offset;
+        response["next_offset"] = end;
+        response["data"] = LLSD::Binary(capture.png.begin() + capture.offset, capture.png.begin() + end);
+        response["done"] = end == (S32)capture.png.size();
+        capture.offset = end;
+        if (response["done"].asBoolean()) capture = Capture();
     }
     void getPaths(const LLSD& r)
     {
@@ -383,11 +408,47 @@ void fsmcpUICaptureFrame()
             throw std::runtime_error("capture_scale_failed");
         LLPointer<LLImagePNG> png = new LLImagePNG;
         if (!png->encode(raw, 0.0f) || png->getDataSize() > 4194304) throw std::runtime_error("capture_encoding_limit");
-        capture.result = LLSD().with("state", "ready").with("png", LLSD::Binary(png->getData(), png->getData() + png->getDataSize()))
+        capture.png.assign(png->getData(), png->getData() + png->getDataSize());
+        capture.result = LLSD().with("state", "ready").with("png_transfer", "chunks_v1").with("png_size", png->getDataSize())
             .with("width", raw->getWidth()).with("height", raw->getHeight()).with("context", context())
             .with("path", capture.path).with("evidence", "normal_render_frame_after_request")
             .with("occlusion", "viewer_panels_may_overlap_target").with("captured_at", LLDate::now());
     }
     catch (const std::exception& e) { capture.result = LLSD().with("state", "unavailable").with("reason", e.what()); }
-    capture.expires = Clock::now() + std::chrono::seconds(10);
+    capture.expires = Clock::now() + std::chrono::seconds(30);
+}
+
+namespace
+{
+// Only the configured MCP helper is supervised, never arbitrary viewer plugins.
+class MCPLeapWatch final : public LLEventTimer
+{
+    std::string command;
+    LLLeap::weak_t child;
+    U32 retries = 0;
+    U32 ticks = 0;
+public:
+    MCPLeapWatch(const std::string& value, LLLeap* initial) : LLEventTimer(2.f), command(value)
+    { if (initial) child = initial->getWeak(); }
+    bool tick() override
+    {
+        if (LLApp::isExiting()) return true;
+        if (!child.expired()) { ticks = 0; return false; }
+        if (retries >= 3) { LL_WARNS("FSMCP") << "MCP helper restart limit reached" << LL_ENDL; return true; }
+        if (++ticks < (1U << retries)) return false;
+        ticks = 0; ++retries;
+        auto next = LLLeap::create("MCP recovery", command, false);
+        if (next) child = next->getWeak();
+        LL_INFOS("FSMCP") << "MCP helper restart attempt " << retries << "; no actions replayed" << LL_ENDL;
+        return false;
+    }
+};
+}
+
+void fsmcpStartLeap(const std::string& command)
+{
+    auto child = LLLeap::create("", command, false);
+    if (command.find("firestorm_mcp/leap_entry.py") != std::string::npos ||
+        command.find("firestorm_mcp\\leap_entry.py") != std::string::npos)
+        new MCPLeapWatch(command, child);
 }

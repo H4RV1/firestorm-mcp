@@ -44,6 +44,8 @@ class LeapBridge:
         self.last_dropped_cursor = 0
         self.late_replies = 0
         self.last_disconnect_reason = None
+        self.last_operation = None
+        self.pending_at_disconnect = 0
         self.apis = {}
         self.started = time.time()
         self.generation = str(uuid.uuid4())
@@ -107,6 +109,7 @@ class LeapBridge:
             self.connected = False
             self.last_disconnect_reason = type(exc).__name__
             with self.lock:
+                self.pending_at_disconnect = len(self.pending)
                 for future in self.pending.values():
                     if not future.done():
                         future.set_exception(ConnectionError("Firestorm LEAP disconnected"))
@@ -190,6 +193,7 @@ class LeapBridge:
         operations = {item["name"]: item for item in descriptor.get("ops", [])}
         if op not in operations:
             raise ValueError(f"Operation {api}.{op} is not exposed by this viewer")
+        self.last_operation = {"api": api[:80], "operation": op[:80]}
         arguments = dict(arguments or {})
         dispatch_key = descriptor.get("key", "op")
         if {"reply", "reqid", dispatch_key} & arguments.keys():
@@ -290,7 +294,7 @@ class LeapBridge:
                 self.request(self.command_pump, {"op": "ping"})
                 return {"status": "dispatched", "menu": entry["name"], "verified_effect": False}
             if method == "call":
-                if request["api"] == "FSMCPUI" and request["op"] in {"requestCapture", "captureResult"}:
+                if request["api"] == "FSMCPUI" and request["op"] in {"requestCapture", "captureResult", "captureChunk"}:
                     if not self.connected or not self.owner or self.owner != client_id:
                         raise RuntimeError("An active control lease is required for UI capture")
                 if request["api"] == "FSMCPBuilder" and request["op"] in {"commitLink", "commitFace", "selectObjects"}:
@@ -370,6 +374,27 @@ def make_handler(bridge, token):
     return Handler
 
 
+def write_disconnect(runtime, bridge):
+    """Persist bounded diagnostics without tokens, request arguments or replies."""
+    record = {
+        "schema_version": 1, "disconnected_at": time.time(),
+        "bridge_generation": bridge.generation,
+        "exception_type": bridge.last_disconnect_reason,
+        "pending_results_unknown": bridge.pending_at_disconnect,
+        "decode_errors": bridge.decode_errors,
+        "repaired_duplicate_blocks": bridge.repaired_duplicate_blocks,
+        "last_operation": bridge.last_operation,
+        "last_operation_is_cause": False,
+        "actions_replayed": False,
+    }
+    target = Path(runtime) / "last-disconnect.json"
+    temporary = target.with_name(f"disconnect-{os.getpid()}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        json.dump(record, handle)
+    temporary.replace(target)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--runtime", required=True, type=Path)
@@ -408,6 +433,10 @@ def main():
         while bridge.connected:
             time.sleep(0.25)
     finally:
+        try:
+            write_disconnect(args.runtime, bridge)
+        except OSError:
+            LOG.warning("Could not persist disconnect diagnostics")
         server.shutdown()
         server.server_close()
         try:

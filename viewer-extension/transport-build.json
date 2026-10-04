@@ -1,0 +1,21 @@
+{
+  "date_utc": "2026-10-04",
+  "package_version": "0.3.0a3+builder.4",
+  "native_parent": "a085f5e22d6388620652f5a6ff08f21fc2d1ef5a",
+  "native_commit": "a7f0a1db36071553e15cdd116e58ceafe84ab5b9",
+  "native_commit_note": "Local only; executable built from these changes before source commit. Use the executable hash, not the unchanged displayed build number.",
+  "compiled": true,
+  "staged": true,
+  "platform": "Windows x64",
+  "isolated_python_tests": 246,
+  "native_watcher_regression": "passed",
+  "offline_wheel_check": "passed",
+  "native_capture_chunk_max_bytes": 8192,
+  "helper_restart_attempts_max": 3,
+  "original_helper_exit_trigger_confirmed": false,
+  "live_chunk_transfer_verified": false,
+  "live_helper_recovery_verified": false,
+  "running_older_viewer_preserved": true,
+  "executable_sha256": "2ff2d21fb92e0441264b7ca0e6e5d87231f8dc4856d64c8a4c225f8bae71206f",
+  "ui_source_sha256": "f394d4e167484266499a9daa6620e8fb8b3fc086ce07d7629dbb1bdeb46b5a79"
+}

@@ -1386,7 +1386,7 @@
   },
   {
     "name": "connection_status",
-    "description": "Check whether the local Firestorm LEAP helper is connected. Does not log in or change the viewer.",
+    "description": "Check whether the local Firestorm LEAP helper is connected. When disconnected, include saved historical diagnostics if available; the last operation is not proof of cause. Does not log in or change the viewer.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {},
@@ -2233,7 +2233,7 @@
   },
   {
     "name": "ui_capture",
-    "description": "Capture a scoped fresh normal Firestorm render frame as an MCP image. No OS screenshot, cursor movement, activation, forced redraw or restore. Requires a lease. Returns unavailable when minimized/rendering suspended. Up to 4M source pixels, 1600 output edge and 4MiB PNG. Viewer panels can occlude the target.",
+    "description": "Capture a scoped fresh normal Firestorm render frame as an MCP image. No OS screenshot, cursor movement, activation, forced redraw or restore. Requires a lease. Returns unavailable when minimized/rendering suspended. Up to 4M source pixels, 1600 output edge and 4MiB PNG. Builder.4 transfers bounded chunks without replay; older viewers use legacy transport. Viewer panels can occlude the target.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

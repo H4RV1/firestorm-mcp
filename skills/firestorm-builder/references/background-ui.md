@@ -25,7 +25,11 @@ typing, mouse input, file pickers, camera changes and legacy snapshots. This
 does not isolate the viewer's selection/world state from the human; reinspect
 after their changes and stop if a target or bridge generation changes.
 
-The native frame request expires after five seconds. A completed PNG is consumed
-once and expires after ten seconds. On a lost reply, report unavailable/unknown
+The native frame request expires after five seconds. Builder.4 returns small
+metadata followed by ordered 8 KiB `captureChunk` replies; prefer `ui_capture`
+to assemble/validate them and emit an MCP image. It expires after 30 seconds
+and is consumed at the final chunk. Older viewers use one PNG reply and ten-second
+expiry; an older Python wrapper cannot consume the new chunk contract.
+On a lost reply, report unavailable/unknown
 instead of claiming a cached image is fresh. Keep captures private and distinguish
 structural, rendered, compiler and simulator evidence.

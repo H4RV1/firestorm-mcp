@@ -4,7 +4,11 @@
 
 [Download](#download) · [Install](#install) · [Tools](docs/TOOLS.md) · [Agent guide](docs/AGENT_GUIDE.md) · [Contribute](CONTRIBUTING.md)
 
-**0.3.0a3+builder.3 · Local development version · MIT**
+**0.3.0a3+builder.4 · Local development version · MIT**
+
+Builder.4 adds [bounded screenshot transfer and helper recovery](docs/CONNECTION_RECOVERY.md),
+with private disconnect diagnostics. The new native build is staged separately;
+its live recovery and capture acceptance remain pending.
 
 Builder.3 adds [background UI perception](docs/BACKGROUND_UI.md): scoped structural
 maps, native next-frame capture, bounded change waits and a background-only task

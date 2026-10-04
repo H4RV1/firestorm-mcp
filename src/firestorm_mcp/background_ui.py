@@ -99,7 +99,7 @@ def register_background_tools(tools):
                 'depth_limited': scene['depth_limited'], 'context': scene['context'],
                 'legend': legend, 'desktop_input_used': False, '_image_path': str(path)}
 
-    @tools.register('Capture a scoped fresh normal Firestorm render frame as an MCP image. No OS screenshot, cursor movement, activation, forced redraw or restore. Requires a lease. Returns unavailable when minimized/rendering suspended. Up to 4M source pixels, 1600 output edge and 4MiB PNG. Viewer panels can occlude the target.', True)
+    @tools.register('Capture a scoped fresh normal Firestorm render frame as an MCP image. No OS screenshot, cursor movement, activation, forced redraw or restore. Requires a lease. Returns unavailable when minimized/rendering suspended. Up to 4M source pixels, 1600 output edge and 4MiB PNG. Builder.4 transfers bounded chunks without replay; older viewers use legacy transport. Viewer panels can occlude the target.', True)
     def ui_capture(path: str, max_size: int = 1280):
         exact_path(path)
         if not 64 <= max_size <= 1600:
@@ -118,7 +118,30 @@ def register_background_tools(tools):
             if value.get('state') != 'ready':
                 return value
             result = dict(value['result'])
-            encoded = result.pop('png')
+            if result.get('png_transfer') == 'chunks_v1':
+                size = result.get('png_size')
+                if type(size) is not int or not 1 <= size <= 4 * 1024 * 1024:
+                    raise ValueError('Invalid bounded capture size')
+                parts, offset = [], 0
+                transfer_deadline = time.monotonic() + 25
+                while offset < size:
+                    if time.monotonic() >= transfer_deadline:
+                        raise TimeoutError('Capture transfer deadline; no chunk replayed')
+                    chunk = call_ui(client, 'captureChunk', {'capture_id': capture_id, 'offset': offset})
+                    encoded = chunk.get('data')
+                    if (str(chunk.get('capture_id')) != capture_id or chunk.get('offset') != offset or
+                            not isinstance(encoded, dict) or set(encoded) != {'$binary_base64'} or
+                            not isinstance(encoded['$binary_base64'], str) or len(encoded['$binary_base64']) > 10924):
+                        raise ValueError('Invalid capture chunk identity/payload')
+                    part = base64.b64decode(encoded['$binary_base64'], validate=True)
+                    end = offset + len(part)
+                    if (not 1 <= len(part) <= 8192 or end > size or chunk.get('next_offset') != end or
+                            chunk.get('done') is not (end == size)):
+                        raise ValueError('Invalid capture chunk bounds/completion')
+                    parts.append(part); offset = end
+                encoded = {'$binary_base64': base64.b64encode(b''.join(parts)).decode('ascii')}
+            else:
+                encoded = result.pop('png')
             if not isinstance(encoded, dict) or set(encoded) != {'$binary_base64'} or not isinstance(encoded['$binary_base64'], str) or len(encoded['$binary_base64']) > 5592408:
                 raise ValueError('Invalid bounded capture payload')
             png = base64.b64decode(encoded['$binary_base64'], validate=True)
