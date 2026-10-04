@@ -26,7 +26,7 @@ class BridgeClient:
     def connection(self):
         try:
             value = json.loads((self.runtime / "connection.json").read_text(encoding="utf-8"))
-            identity = (value["url"], value["token"], value.get("session_id"))
+            identity = (value["url"], value["token"], value.get("session_id"), value.get("bridge_generation"))
             if not isinstance(value["url"], str) or not isinstance(value["token"], str) or not 1 <= len(value["token"]) <= 256 or any(ord(c) < 33 or ord(c) > 126 for c in value["token"]):
                 raise ValueError("Invalid metadata")
         except (OSError, ValueError, KeyError, TypeError):
@@ -37,8 +37,10 @@ class BridgeClient:
             self.connection_identity = identity
         return value
 
-    def rpc(self, method, **arguments):
+    def rpc(self, method, *, _connection_identity=None, **arguments):
         connection = self.connection()
+        if _connection_identity is not None and self.connection_identity != _connection_identity:
+            raise ConnectionError("Bridge generation changed before dispatch. Refresh capabilities and acquire a new lease; no action was replayed.")
         if self.lease_identity is not None and self.lease_identity != self.connection_identity and method not in {"status", "discover", "acquire"}:
             raise ConnectionError("Bridge generation changed; the previous lease is lost. Reinspect and explicitly acquire control before continuing. No action was replayed.")
         endpoint = urllib.parse.urlsplit(connection["url"])
@@ -88,4 +90,5 @@ class BridgeClient:
             kwargs["expect_reply"] = ("reply" in (descriptor.get("required") or {}) or
                                       '"reply"' in descriptor.get("desc", "") or
                                       (api == "LLFloaterReg" and op == "clickButton"))
-        return self.rpc("call", api=api, op=op, arguments=arguments or {}, **kwargs)
+        return self.rpc("call", _connection_identity=self.connection_identity,
+                        api=api, op=op, arguments=arguments or {}, **kwargs)

@@ -313,3 +313,68 @@ def test_typed_sound_wrapper_chunks_exact_bytes_and_preserves_metadata(gateway, 
     assert tools.call('assets_upload_sound', request)['jobId'] == result['jobId']
     assert sum(op == 'stage' for op, _ in gateway.bridge.calls) == 2
     assert sum(op == 'submit' for op, _ in gateway.bridge.calls) == 1
+
+
+@pytest.mark.parametrize("operation", ["job", "cancel"])
+def test_job_identity_conflict_preserves_durable_intent(gateway, operation):
+    request = folder_request()
+    job = gateway.handle('submit', request)
+    before = gateway.journal.get(request['requestId'])
+    gateway.bridge.jobs[job['jobId']].update(fingerprint='wrong', requestId=uid(), state='succeeded', result={'id': uid()})
+    result = gateway.handle(operation, {'jobId': job['jobId']})
+    assert result['failure']['code'] == 'request_conflict'
+    assert result['failure']['unknownOutcome']
+    assert gateway.journal.get(request['requestId']) == before
+    if operation == 'cancel':
+        assert not any(op == 'cancel' for op, _ in gateway.bridge.calls)
+
+
+def test_job_poll_after_gateway_restart_persists_terminal_result(gateway):
+    request = folder_request()
+    job = gateway.handle('submit', request)
+    gateway.bridge.jobs[job['jobId']].update(state='succeeded', result={'id': uid()})
+    restarted = AssetGateway(gateway.bridge, AssetJournal(gateway.journal.path))
+    assert restarted.handle('job', {'jobId': job['jobId']})['state'] == 'succeeded'
+    assert restarted.journal.get(request['requestId'])['state'] == 'succeeded'
+
+
+@pytest.mark.parametrize('operation', ['job', 'request'])
+def test_reconciliation_binding_survives_gateway_restart(gateway, operation):
+    request = folder_request()
+    gateway.handle('submit', request)
+    reconciliation = dict(kind='reconcile', requestId=uid(), expected=dict(request['expected'], generation=uid()), arguments=dict(originalRequestId=request['requestId']))
+    job = gateway.handle('submit', reconciliation)
+    gateway.bridge.jobs[job['jobId']].update(state='succeeded', result={'id': uid()})
+    restarted = AssetGateway(gateway.bridge, AssetJournal(gateway.journal.path))
+    arguments = {'jobId': job['jobId']} if operation == 'job' else {'requestId': reconciliation['requestId']}
+    assert restarted.handle(operation, arguments)['state'] == 'succeeded'
+    assert restarted.journal.get(request['requestId'])['reconciled']
+    assert restarted.handle('submit', reconciliation)['state'] == 'succeeded'
+    assert sum(op == 'submit' for op, _ in gateway.bridge.calls) == 2
+
+
+def test_mismatched_submit_acknowledgement_remains_unknown(gateway, monkeypatch):
+    request = folder_request()
+    original = gateway.bridge.call
+    def wrong_identity(api, operation, arguments, **kwargs):
+        result = original(api, operation, arguments, **kwargs)
+        if operation == 'submit':
+            result = dict(result, requestId=uid(), fingerprint='wrong', state='succeeded', result={'id': uid()})
+        return result
+    monkeypatch.setattr(gateway.bridge, 'call', wrong_identity)
+    result = gateway.handle('submit', request)
+    assert result['failure']['code'] == 'request_conflict'
+    assert gateway.journal.get(request['requestId'])['state'] == 'unknown'
+    assert gateway.handle('submit', request)['unknownOutcome']
+    assert sum(op == 'submit' for op, _ in gateway.bridge.calls) == 1
+
+
+def test_native_lease_refusal_blocks_asset_dispatch(gateway, monkeypatch):
+    original = gateway.bridge.call
+    def reject_lease(api, operation, arguments, **kwargs):
+        if operation == 'lease':
+            return dict(schema_version=1, ok=False, failure={'code': 'permission_denied'})
+        return original(api, operation, arguments, **kwargs)
+    monkeypatch.setattr(gateway.bridge, 'call', reject_lease)
+    assert gateway.handle('submit', folder_request())['failure']['code'] == 'lease_sync_failed'
+    assert not any(op == 'submit' for op, _ in gateway.bridge.calls)

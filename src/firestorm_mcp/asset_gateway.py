@@ -31,13 +31,14 @@ class AssetGateway:
         seconds = max(0, b.lease_until - time.monotonic())
         lease = str(uuid.uuid5(uuid.NAMESPACE_URL, b.generation + str(b.owner))) if b.owner and seconds else ''
         # The native lease remains authoritative on every execution. Avoid an
-        # extra viewer round trip for every 48 KiB staging chunk and job poll.
+        # extra viewer round trip for every staging chunk and job poll.
         now = time.monotonic()
         if lease != self.synced_lease or self.synced_until - now < 30 or b.lease_until > self.synced_until + 1:
             result = self.native('lease', {'leaseId': lease, 'seconds': seconds})
-            if result.get('ok') is False:
-                raise AssetError('lease_required', 'Native lease synchronization was refused.')
+            if not result.get('ok'):
+                raise AssetError('lease_sync_failed', 'Native asset lease synchronization was refused; control was not established.')
             self.synced_lease, self.synced_until = lease, now + seconds
+
         return lease
 
     def revoked(self):
@@ -153,7 +154,8 @@ class AssetGateway:
                 digest_key = 'audioSha256' if kind == 'uploadSound' else 'payloadSha256'
                 if not entry or entry['owner'] != lease or entry['expires'] <= time.monotonic() or not entry['size'] or entry['digest'].hexdigest() != arguments.get(digest_key):
                     raise AssetError('stage_mismatch', 'Complete staged bytes do not match the declared SHA256.')
-            if kind in WRITES:
+            if kind in WRITES or kind == 'reconcile':
+
                 if not self.journal:
                     raise AssetError('journal_unavailable', 'A durable bridge journal is required for mutations.')
                 record, fresh = self.journal.reserve(request, digest, kind, logical, expected)
@@ -163,24 +165,40 @@ class AssetGateway:
             try:
                 result = self.native('submit', native_args)
             except Exception:
-                if kind in WRITES:
+                if kind in WRITES or kind == 'reconcile':
                     raise AssetError('outcome_unknown', 'Submission acknowledgement was lost. Do not replay; poll or reconcile the saved request.', True, requestId=request) from None
                 raise
+            if result.get('ok') and (result.get('requestId') != request or result.get('fingerprint') != digest):
+                raise AssetError('request_conflict', 'Submission acknowledgement differs from its durable intent; inspect the original request.', True, requestId=request)
             if result.get('jobId'):
                 self.jobs[result['jobId']] = (request, kind, logical.get('originalRequestId'))
                 # Bound local bookkeeping independently from the persistent write journal.
                 if len(self.jobs) > 256:
                     self.jobs.pop(next(iter(self.jobs)))
-            if kind in WRITES:
+            if kind in WRITES or kind == 'reconcile':
                 self.record(request, result, submission=True)
             return result
         if op in ('job', 'cancel'):
+            if op == 'cancel' and self.journal:
+                bound = self.journal.by_job(args.get('jobId'))
+                if bound:
+                    observed = self.native('job', args)
+                    if not observed.get('ok'):
+                        return self.saved(bound)
+                    if observed.get('fingerprint') != bound['fingerprint'] or observed.get('requestId') != bound['requestId']:
+                        raise AssetError('request_conflict', 'Native job identity differs from its durable intent; cancellation was not dispatched.', True)
             result = self.native(op, args)
             job_id = args.get('jobId')
             entry = self.jobs.get(job_id)
+            durable = self.journal.by_job(job_id) if self.journal else None
+            if durable:
+                entry = (durable['requestId'], durable['kind'], durable['arguments'].get('originalRequestId'))
             if entry:
                 request, kind, original = entry
-                if kind in WRITES:
+                saved = self.journal.get(request) if self.journal else None
+                if result.get('ok') and saved and (result.get('fingerprint') != saved['fingerprint'] or result.get('requestId') != request):
+                    raise AssetError('request_conflict', 'Native job identity differs from its durable intent.', True)
+                if kind in WRITES or kind == 'reconcile':
                     self.record(request, result)
                     if not result.get('ok'):
                         return self.saved(self.journal.get(request))
@@ -195,9 +213,12 @@ class AssetGateway:
                 lookup = {'jobId': record['jobId']} if record.get('jobId') else {'requestId': record['requestId']}
                 result = self.native('job', dict(lookup, leaseId=lease))
                 if result.get('ok'):
-                    if result.get('fingerprint') != record['fingerprint']:
+                    if result.get('fingerprint') != record['fingerprint'] or result.get('requestId') != record['requestId']:
                         raise AssetError('request_conflict', 'Retained native job has a different operation fingerprint.', True)
-                    self.record(record['requestId'], result); return result
+                    self.record(record['requestId'], result)
+                    if record['kind'] == 'reconcile' and result.get('state') == 'succeeded':
+                        self.journal.update(record['arguments']['originalRequestId'], state='succeeded', result=result['result'], unknownOutcome=False, reconciled=True)
+                    return result
             return self.saved(record)
         if op not in ('watch', 'events', 'unwatch'):
             raise AssetError('unsupported_operation', 'Unsupported asset transport operation.')

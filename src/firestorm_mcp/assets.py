@@ -3,11 +3,52 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
 import struct
 import xml.etree.ElementTree as ET
 
 from PIL import Image, ImageChops, ImageStat
+
+
+def local_asset_path(filename):
+    """Accept the attachment-style /C:/ prefix only on its native host."""
+    if re.match(r"^/[A-Za-z]:[/\\]", filename):
+        if os.name != "nt":
+            raise ValueError("Windows attachment path requires a Windows host; provide a local asset path")
+        filename = filename[1:]
+    return Path(filename).resolve(strict=True)
+
+
+def gltf_frame_metadata(data):
+    """Describe declared node frames; do not predict a particular importer."""
+    nodes = []
+    defaults = {"translation": [0, 0, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1],
+                "matrix": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]}
+    for index, node in enumerate(data.get("nodes", [])):
+        transforms = {key: node[key] for key in defaults if key in node}
+        nodes.append({"node_index": index, "name": node.get("name"), "mesh_index": node.get("mesh"),
+                      "children": node.get("children", []), "declared_transform": transforms,
+                      "nonidentity_transform": any(value != defaults[key] for key, value in transforms.items())})
+    meshes = []
+    accessors = data.get("accessors", [])
+    for index, mesh in enumerate(data.get("meshes", [])):
+        primitives = []
+        for face, primitive in enumerate(mesh.get("primitives", [])):
+            accessor_index = primitive.get("attributes", {}).get("POSITION")
+            accessor = (accessors[accessor_index] if isinstance(accessor_index, int)
+                        and 0 <= accessor_index < len(accessors) else {})
+            primitives.append({"primitive_index": face, "material_index": primitive.get("material"),
+                               "position_accessor": accessor_index, "declared_min": accessor.get("min"),
+                               "declared_max": accessor.get("max")})
+        meshes.append({"mesh_index": index, "name": mesh.get("name"), "primitives": primitives})
+    return {"nodes": nodes, "meshes": meshes, "scene_index": data.get("scene"),
+            "scenes": data.get("scenes", []), "bounds_evidence": "declared_accessor_metadata",
+            "native_axes_verified": False, "native_pivots_verified": False,
+            "importer_mapping_verified": False,
+            "warnings": (["Nonidentity node transforms may be baked by the importer; verify native axes and pivots."]
+                         if any(node["nonidentity_transform"] for node in nodes) else [])}
 
 
 def file_record(path: Path):
@@ -19,7 +60,7 @@ def file_record(path: Path):
 
 
 def inspect_asset(filename: str):
-    path = Path(filename).resolve(strict=True)
+    path = local_asset_path(filename)
     result = {**file_record(path), "evidence_kind": "local_export_metadata", "simulator_verified": False}
     suffix = path.suffix.lower()
     if suffix == ".dae":
@@ -63,6 +104,7 @@ def inspect_asset(filename: str):
         result.update(format="glTF", asset=data.get("asset"), mesh_count=len(data.get("meshes", [])),
                       materials=data.get("materials", []), images=data.get("images", []),
                       extensions_used=data.get("extensionsUsed", []),
+                      frame_audit=gltf_frame_metadata(data),
                       note="File inspection does not establish support by the viewer's mesh or material importer.")
     else:
         with Image.open(path) as img:

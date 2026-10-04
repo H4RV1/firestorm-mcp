@@ -8,16 +8,39 @@ description: "Use Firestorm MCP for nearby-object discovery, link/unlink plans, 
 Use semantic MCP tools first. Keep one MCP session for acquire/work/release; a new
 server process has a different client identity. Do not repeatedly restart MCP
 just to execute another tool. Use `workflow_read` to group independent explicit
-reads in one tool call. A missing native capability is a version gap, not a reason
+reads in one tool call; keep dependent writes sequential. A missing native capability is a version gap, not a reason
 to send guessed raw commands or restart a shared viewer.
 
 1. Read `connection_status`, then `capabilities_refresh` once per bridge generation.
    Read `builder_capabilities`; for uploads also read `assets_status`.
 2. Acquire a bounded control lease for the authorized task. Release in cleanup.
+   Check expiry before long reasoning, waits or captures; renew with
+   `control_acquire` in the same session before expiry. After expiry or a bridge
+   generation change, reacquire and reinspect targets and pending outcomes.
    Human input remains possible: reinspect affected selection/controls afterward.
 3. Choose the workflow below. Use exact UUIDs and face indices from observations.
 4. Report evidence precisely: source file, viewer cache, UI compiler rows, dispatch,
    and simulator effects are different. Never turn a null or timeout into success.
+
+## Choose tools quickly
+
+| Need | Start with | Evidence / limit |
+| --- | --- | --- |
+| Nearby loaded objects | `object_search` | Cached names/loading; empty is not absence |
+| Selection / linkset / faces | `object_selection`, `object_linkset`, `object_faces` | Exact UUIDs, current selection identity; viewer cache provenance |
+| Link / surface mutation | Matching plan -> inspect -> apply -> fresh object read | Expiring single-use plans; dispatch is not simulator confirmation |
+| UI controls / compile rows | `ui_task` / `ui_map` -> `ui_read` / `ui_rows` | Exact editor instance; read only required values |
+| Registered script | `script_sessions` -> `script_read` -> CAS `script_write` | Local file/backup; compile, save and runtime separately verified |
+| Background perception | `background_status` -> `ui_scene` or `ui_capture` | Structure and pixels differ; read [background procedure](references/background-ui.md) |
+| Upload / recovery | `assets_status` -> asset route -> `assets_job` | Read [asset recovery](references/assets-and-recovery.md); preserve request IDs |
+| Mesh preflight | `asset_inspect`, `mesh_upload_status` | Source, importer readback and simulator axes differ |
+| Unfamiliar operation | `viewer_api_inspect` -> `viewer_call` | Discover actual schema and authority first |
+
+Use the connected MCP's listed schemas and native capability receipts together.
+Inspect only the chosen route's schemas; a skill adds no runtime capabilities.
+Stable script open/compile jobs, complete simulator transforms/light/physics/PBR
+readback and measured camera poses remain capability gaps. Do not substitute
+stale compiler rows, thumbnails or requested camera settings for verified effects.
 
 ## Objects and surfaces
 
@@ -61,6 +84,10 @@ then `script_sessions` -> `script_read` -> `script_write` with the prior SHA256.
 Never write an arbitrary temp file. Local writes trigger Firestorm's watcher but
 do not prove compilation. Read the exact editor's compiler rows, verify save,
 then verify execution when relevant. Do not guess which duplicate editor is open.
+Closing/reopening can remove the temporary file or register another session. An
+active file does not prove object/item/editor binding; never choose the newest
+same-name session. An old successful compiler row does not verify this write:
+require evidence tied to the new source or leave compile/save unknown.
 
 ## Uploads and reconnects
 

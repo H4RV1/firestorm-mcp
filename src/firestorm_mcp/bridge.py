@@ -23,6 +23,7 @@ from .paths import viewer_directory
 from .process_identity import parent_viewer
 
 LOG = logging.getLogger(__name__)
+OPERATION_QUEUE_TIMEOUT = 2
 
 
 class LeapBridge:
@@ -237,7 +238,10 @@ class LeapBridge:
                     "dropped_events": self.dropped_events, "disconnect_reason": self.last_disconnect_reason,
                     "late_replies": self.late_replies,
                     "ui_tree_policy": "native_bounded_only", "rpc_contract": 2,
-                    "control_owner": self.owner_label if self.lease_until > time.monotonic() else None}
+                    "control_owner": self.owner_label if self.lease_until > time.monotonic() else None,
+                    "control_owned_by_client": bool(self.owner and self.owner == request.get("client_id") and self.lease_until > time.monotonic()),
+                    "control_expires_in_seconds": max(0, self.lease_until - time.monotonic()),
+                    "human_input_excluded": False}
         if method == "events":
             after = int(request.get("after", 0))
             with self.lock:
@@ -254,11 +258,21 @@ class LeapBridge:
                     raise RuntimeError("Viewer control is held by " + str(self.owner_label))
                 seconds = min(1800, max(30, float(request.get("seconds", 300))))
                 acquired_new = self.owner != client_id
+                previous = self.owner, self.owner_label, self.lease_until
                 self.owner, self.owner_label = client_id, request.get("label", "agent")
                 self.lease_until = max(self.lease_until, time.monotonic() + seconds)
                 if self.assets and "FSMCPAssets" in self.apis:
-                    self.assets.sync_lease()
+                    try:
+                        self.assets.sync_lease()
+                    except Exception:
+                        self.owner, self.owner_label, self.lease_until = previous
+                        try:
+                            self.assets.sync_lease()
+                        except Exception:
+                            LOG.warning("Native lease synchronization failed; local ownership restored")
+                        raise
                 return {"acquired": True, "acquired_new": acquired_new, "owner": self.owner_label,
+                        "bridge_generation": self.generation, "human_input_excluded": False,
                         "expires_in_seconds": self.lease_until - time.monotonic()}
             if method == "release":
                 if self.owner and self.owner != client_id:
@@ -315,7 +329,7 @@ class LeapBridge:
 
     @contextmanager
     def operation_slot(self):
-        if not self.operation_lock.acquire(timeout=2):
+        if not self.operation_lock.acquire(timeout=OPERATION_QUEUE_TIMEOUT):
             raise RuntimeError("Bridge busy; request was not dispatched. Inspect the running operation before retrying.")
         try:
             yield

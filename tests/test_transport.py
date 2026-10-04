@@ -192,6 +192,102 @@ def test_control_lease(channel):
     assert bridge.handle({"method": "release", "client_id": "one"})["released"]
 
 
+def test_busy_bridge_rejects_queued_request_before_dispatch(channel, monkeypatch):
+    bridge, _, _ = channel
+    monkeypatch.setattr("firestorm_mcp.bridge.OPERATION_QUEUE_TIMEOUT", 0.01)
+    dispatched = []
+    monkeypatch.setattr(bridge, "call", lambda *args: dispatched.append(args))
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        with bridge.operation_lock:
+            queued = pool.submit(bridge.handle, {"method": "call", "api": "synthetic", "op": "edit"})
+            with pytest.raises(RuntimeError, match="not dispatched"):
+                queued.result(1)
+    assert dispatched == []
+
+
+def test_stale_generation_rejected_before_dispatch(channel, monkeypatch):
+    bridge, _, _ = channel
+    dispatched = []
+    monkeypatch.setattr(bridge, "call", lambda *args: dispatched.append(args))
+    with pytest.raises(ConnectionError, match="generation changed"):
+        bridge.handle({"method": "call", "api": "synthetic", "op": "edit", "expected_bridge_generation": "old"})
+    assert dispatched == []
+
+
+def test_native_lease_sync_failure_restores_ownership(channel):
+    bridge, _, _ = channel
+    class FailedAssets:
+        def sync_lease(self):
+            raise TimeoutError("Synthetic lost acknowledgement")
+    bridge.assets = FailedAssets()
+    bridge.apis = {"FSMCPAssets": {}}
+    with pytest.raises(TimeoutError):
+        bridge.handle({"method": "acquire", "client_id": "one"})
+    assert bridge.owner is None
+    assert bridge.lease_until == 0
+
+
+def test_native_renewal_failure_preserves_previous_lease(channel):
+    bridge, _, _ = channel
+    bridge.handle({"method": "acquire", "client_id": "one", "label": "original", "seconds": 30})
+    previous = bridge.owner, bridge.owner_label, bridge.lease_until
+    class FailedAssets:
+        def sync_lease(self):
+            raise TimeoutError("Synthetic lost acknowledgement")
+    bridge.assets = FailedAssets()
+    bridge.apis = {"FSMCPAssets": {}}
+    with pytest.raises(TimeoutError):
+        bridge.handle({"method": "acquire", "client_id": "one", "label": "renewed", "seconds": 300})
+    assert (bridge.owner, bridge.owner_label, bridge.lease_until) == previous
+
+
+def test_status_reports_lease_remaining_and_same_client(channel):
+    bridge, _, _ = channel
+    acquired = bridge.handle({"method": "acquire", "client_id": "one", "seconds": 30})
+    assert acquired["bridge_generation"] == bridge.generation
+    owned = bridge.handle({"method": "status", "client_id": "one"})
+    assert owned["control_owned_by_client"] is True
+    assert 0 < owned["control_expires_in_seconds"] <= 30
+    assert owned["human_input_excluded"] is False
+    assert bridge.handle({"method": "status", "client_id": "two"})["control_owned_by_client"] is False
+
+
+def test_client_generation_change_invalidates_cached_reply_schema(tmp_path, monkeypatch):
+    import json
+    from firestorm_mcp.client import BridgeClient
+    metadata = tmp_path / "connection.json"
+    metadata.write_text(json.dumps({"url": "http://127.0.0.1:1/rpc", "token": "synthetic", "session_id": "old"}))
+    client = BridgeClient(tmp_path)
+    client.connection()
+    client.apis = {"Synthetic": {"ops": [{"name": "edit"}]}}
+    metadata.write_text(json.dumps({"url": "http://127.0.0.1:1/rpc", "token": "synthetic", "session_id": "new"}))
+    requests = []
+    def rpc(method, **arguments):
+        requests.append((method, arguments))
+        if method == "discover":
+            client.apis = {"Synthetic": {"ops": [{"name": "edit", "required": {"reply": None}}]}}
+            return client.apis
+        return {"ok": True}
+    monkeypatch.setattr(client, "rpc", rpc)
+    assert client.call("Synthetic", "edit") == {"ok": True}
+    assert [method for method, _ in requests] == ["discover", "call"]
+    assert requests[-1][1]["expect_reply"] is True
+
+
+def test_client_generation_changes_between_inference_and_dispatch(tmp_path, monkeypatch):
+    import json
+    from firestorm_mcp.client import BridgeClient
+    metadata = tmp_path / "connection.json"
+    metadata.write_text(json.dumps({"url": "http://127.0.0.1:1/rpc", "token": "synthetic", "session_id": "old"}))
+    client = BridgeClient(tmp_path)
+    client.connection()
+    old_identity = client.connection_identity
+    metadata.write_text(json.dumps({"url": "http://127.0.0.1:1/rpc", "token": "synthetic", "session_id": "new"}))
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: pytest.fail("No HTTP action may be sent"))
+    with pytest.raises(ConnectionError, match="before dispatch"):
+        client.rpc("call", _connection_identity=old_identity, api="Synthetic", op="edit")
+
+
 def test_crash_prone_inputs_rejected(channel):
     bridge, _, _ = channel
     bridge.apis = {"UI": {"ops": [{"name": "call"}]}, "LLViewerWindow": {"ops": [{"name": "saveSnapshot"}]}}

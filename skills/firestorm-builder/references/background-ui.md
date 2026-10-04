@@ -33,3 +33,9 @@ expiry; an older Python wrapper cannot consume the new chunk contract.
 On a lost reply, report unavailable/unknown
 instead of claiming a cached image is fresh. Keep captures private and distinguish
 structural, rendered, compiler and simulator evidence.
+
+Before capture, check lease expiry and renew in the same MCP session when needed.
+Prefer `ui_capture` over manual `captureChunk` loops: the wrapper validates the
+transfer and returns image content without raw base64 in agent context. A lost
+reply or expired result stays unknown; do not replay a capture automatically.
+Exact camera pose is unavailable, so inspect composition before labelling views.

@@ -171,3 +171,51 @@ def test_latency_is_bounded_and_reports_only_event_loop(tmp_path):
     assert report["median_ms"] >= 0 and not report["simulator_latency_measured"]
     with pytest.raises(ValueError):
         tools.call("viewer_latency", {"samples": 100})
+
+
+def test_reopened_registration_supersedes_old_identity(script):
+    workspace, sid, path = script
+    old = workspace.read(sid)
+    reopened = workspace.register(path, {"pid": 123, "started": 100.0})
+    with pytest.raises(sw.ScriptConflict) as error:
+        workspace.write(sid, "stale save", old["sha256"], 123)
+    assert error.value.code == "superseded"
+    assert workspace.read(reopened["session_id"])["sha256"] == old["sha256"]
+    sessions = {entry["session_id"]: entry for entry in workspace.list()["sessions"]}
+    assert sessions[sid]["state"] == "superseded"
+    assert sessions[reopened["session_id"]]["active_file"]
+
+
+def test_deleted_registration_has_explicit_state(script):
+    workspace, sid, path = script
+    path.unlink()
+    assert workspace.list()["sessions"][0]["state"] == "file_missing"
+
+
+def test_registration_and_write_share_path_lock(script):
+    workspace, sid, path = script
+    old = workspace.read(sid)
+    with workspace._path_lock(path):
+        with pytest.raises(FileExistsError):
+            workspace.register(path, {"pid": 123, "started": 100.0})
+        with pytest.raises(FileExistsError):
+            workspace.write(sid, "concurrent edit", old["sha256"], 123)
+    assert workspace.read(sid)["sha256"] == old["sha256"]
+
+
+def test_registration_during_write_cannot_resurrect_old_session(script, monkeypatch):
+    workspace, sid, path = script
+    old = workspace.read(sid)
+    now = time.time()
+    os.utime(path, (now, now))
+    attempts = []
+    def concurrent_registration(seconds):
+        with pytest.raises(FileExistsError):
+            workspace.register(path, {"pid": 123, "started": 100.0})
+        attempts.append(True)
+    monkeypatch.setattr(sw.time, "sleep", concurrent_registration)
+    workspace.write(sid, "new source", old["sha256"], 123)
+    assert attempts
+    workspace.register(path, {"pid": 123, "started": 100.0})
+    with pytest.raises(sw.ScriptConflict):
+        workspace.read(sid)

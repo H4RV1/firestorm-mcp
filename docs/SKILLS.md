@@ -10,6 +10,14 @@ The MCP supplies tools. The optional **firestorm-mesh-preview** skill supplies t
 
 It follows the [Agent Skills format](https://agentskills.io/specification). It adds instructions, not viewer capabilities or permissions. A speed improvement has not been measured.
 
+The [builder skill](../skills/firestorm-builder/SKILL.md) routes object plans,
+registered script edits, bounded UI and asset jobs. Use its quick routing table
+and load only the reference relevant to the task. Keep personal copies aligned
+with this source. Tools still need the matching native capabilities; proposed
+script lifecycle, camera pose and complete simulator readback APIs are not
+implemented by skill instructions. Renew control in the same session before
+long waits and reinspect after human changes or bridge recovery.
+
 ## Install
 
 1. [Download skill 0.1.1](https://github.com/AochiToxx/firestorm-mcp/releases/download/skill-v0.1.1/firestorm-mesh-preview-0.1.1.zip) and extract it.

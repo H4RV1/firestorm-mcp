@@ -31,6 +31,31 @@ the relevant IDs/paths. This uses installed control definitions and exact live
 readback instead of repeated screenshots or tree scans. Prefer the task guide's
 semantic tools where available. See [UI navigation and examples](UI_MAP.md).
 
+## Choose a workflow
+
+| Need | Preferred route | Check before reporting success |
+| --- | --- | --- |
+| Independent explicit reads | `workflow_read` | Per-call results; no dependent write in the batch |
+| Nearby object / selection | `object_search` -> `object_selection` -> `object_select` | Exact prior selection identity; reinspect after human changes |
+| Link / legacy surface edits | `object_link_plan` or `material_face_plan` -> matching apply -> fresh object read | Expiring plans, exact targets; dispatch is not simulator confirmation |
+| UI values / compiler rows | `ui_task` / `ui_map` -> `ui_read` / `ui_rows` | Correct instance and source revision; stale success rows prove nothing |
+| Registered script edit | `script_sessions` -> `script_read` -> CAS `script_write` | Local write only; object/item binding, compile/save/runtime remain separate |
+| Background image | `background_status` -> scoped `ui_capture` | Normal rendering, fresh pixels and correct subject; no desktop fallback |
+| Texture / PBR files | `assets_file_inspect` -> prepare -> `assets_job` -> authorized commit | Exact approved cost, dependencies and confirmed returned identities |
+| Uncertain mutation | Original request ID / plan receipt and fresh readback | Never replay an uncertain apply or generate a new upload ID to retry |
+
+Use current schemas and live capabilities: these wrappers still require compatible
+native endpoints. Stable script open/compile jobs, complete simulator transforms,
+physics/projector readback and measured camera pose are proposed capabilities,
+not promises made by the present tools.
+
+Check the control receipt/`connection_status` expiry before long reasoning,
+polling or image transfer. Renew with `control_acquire` in the same session
+before expiry; never release another owner's lease. After expiry or a bridge
+generation change, reacquire and reinspect targets and pending outcomes first.
+Renewal does not grant new task authority.
+
+
 ## Connect through the SDK
 
 If your host has not loaded the tools, use the installed Python environment and a real MCP client. This SDK v2 example uses the configuration generator so custom state/resource paths are preserved:
@@ -120,6 +145,13 @@ Imports can change the selected preview LOD. Select, commit and read it back bef
 Snapshots include PNGs, hashes and heuristic blank-frame flags. Inspect the image: nonblank does not establish freshness, subject or LOD. Pixel differences do not establish material/model correctness and may include unrelated UI changes.
 
 ## Failure and cleanup
+
+Closing/reopening a script editor can remove its temporary file or register a new
+session. Do not pick the newest same-name session or infer object/item identity
+from a filename. A previously successful compiler row does not prove a newly
+written source compiled or saved. Require evidence tied to the current edit, or
+report those outcomes as unknown. Never activate a generic Contents container
+when its intended object/item tree is empty, stale or still loading.
 
 Timeouts and cancellation do not retract sent actions. Reinspect before retrying a write. A dropped-event flag means the event record is incomplete.
 

@@ -36,12 +36,37 @@ def _atomic_json(path, value):
         temporary.unlink(missing_ok=True)
 
 
+class ScriptConflict(ValueError):
+    """Conflict evidence for registered external files, never simulator identity."""
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
 class ScriptWorkspace:
     def __init__(self, root):
         self.root = Path(root) / "scripts"
         self.sessions = self.root / "sessions"
 
+    @contextmanager
+    def _path_lock(self, path):
+        locks = self.root / "locks"
+        locks.mkdir(parents=True, exist_ok=True)
+        # Shared by registration and writes, including different session IDs.
+        key = digest(os.path.normcase(str(Path(path).resolve())).encode("utf-8"))
+        lock = locks / (key + ".lock")
+        with lock.open("x", encoding="utf-8") as handle:
+            handle.write(str(os.getpid()))
+        try:
+            yield
+        finally:
+            lock.unlink()
+
     def register(self, path, viewer):
+        with self._path_lock(path):
+            return self._register(path, viewer)
+
+    def _register(self, path, viewer):
         """Called only by the viewer-launched editor entry point."""
         path = Path(path).absolute()
         if path.is_symlink() or path.parent.resolve() != Path(tempfile.gettempdir()).resolve():
@@ -57,6 +82,16 @@ class ScriptWorkspace:
         record = {"session_id": session_id, "path": str(path), "viewer": viewer,
                   "registered_at": time.time(), "file_id": self._file_id(path),
                   "name": path.name, "object_id": None, "item_id": None}
+        # Persist supersession before publishing the replacement session.
+        for previous in self.sessions.glob("*.json"):
+            try:
+                old = json.loads(previous.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(old, dict) and old.get("path") == str(path) and old.get("viewer") == viewer:
+                old.update(state="superseded", superseded_by=session_id)
+                _atomic_json(previous, old)
+        record["state"] = "registered"
         _atomic_json(self.sessions / (session_id + ".json"), record)
         return record
 
@@ -74,13 +109,15 @@ class ScriptWorkspace:
         record = json.loads(self._record_path(session_id).read_text(encoding="utf-8"))
         if record.get("session_id") != session_id:
             raise ValueError("Script registration identity mismatch")
+        if record.get("state") == "superseded":
+            raise ScriptConflict("superseded", "Script registration was superseded; use the reopened session")
         current = viewer_identity(record["viewer"]["pid"])
         if current != record["viewer"]:
-            raise ValueError("Viewer session has ended; reopen the script with External Edit")
+            raise ScriptConflict("viewer_ended", "Viewer session has ended; reopen the script with External Edit")
         path = Path(record["path"])
         if (path.is_symlink() or path.parent.resolve() != Path(tempfile.gettempdir()).resolve()
                 or self._file_id(path) != record["file_id"]):
-            raise ValueError("External file was replaced; reopen the script with External Edit")
+            raise ScriptConflict("file_replaced", "External file was replaced; reopen the script with External Edit")
         return record, path
 
     @contextmanager
@@ -100,10 +137,11 @@ class ScriptWorkspace:
             try:
                 record, path = self._load(record_path.stem)
                 result.append({"session_id": record["session_id"], "name": record["name"],
-                               "active_file": True, "bytes": path.stat().st_size,
+                               "active_file": True, "state": "registered", "bytes": path.stat().st_size,
                                "object_id": None, "item_id": None})
-            except (OSError, ValueError, KeyError, psutil.Error):
-                result.append({"session_id": record_path.stem, "active_file": False})
+            except (OSError, ValueError, KeyError, psutil.Error) as exc:
+                state = getattr(exc, "code", "file_missing" if isinstance(exc, FileNotFoundError) else "unavailable")
+                result.append({"session_id": record_path.stem, "active_file": False, "state": state})
         return {"sessions": result, "source": "registered_external_editor_files",
                 "note": "An active file does not prove the script editor is still open or a save has compiled."}
 
@@ -128,7 +166,8 @@ class ScriptWorkspace:
         data = source.encode("utf-8")
         if b"\0" in data or len(data) > MAX_SCRIPT_BYTES:
             raise ValueError("Script must contain no NUL bytes and be at most 1 MiB")
-        with self._lock(session_id):
+        record, path = self._load(session_id)
+        with self._path_lock(path), self._lock(session_id):
             record, path = self._load(session_id)
             if record["viewer"]["pid"] != viewer_pid:
                 raise ValueError("Script belongs to a different viewer than the connected bridge")
@@ -169,7 +208,8 @@ class ScriptWorkspace:
                 temporary.unlink(missing_ok=True)
             after = self._read(path)
             return {"status": "external_file_written", "session_id": session_id,
-                    "sha256": digest(after), "file_write_verified": after == data,
+                    "sha256": digest(after), "previous_sha256": expected_sha256,
+                    "source_origin": "registered_external_file", "file_write_verified": after == data,
                     "backup_path": str(backup), "compile_verified": False,
                     "simulator_save_verified": False,
                     "note": "Firestorm normally reloads and saves this file automatically. Check editor compile results before another edit."}

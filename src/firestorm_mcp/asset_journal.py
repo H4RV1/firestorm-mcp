@@ -56,3 +56,14 @@ class AssetJournal:
             record = json.loads(row[0]); record.update(fields)
             db.execute('UPDATE jobs SET record=? WHERE request=?', (json.dumps(record, default=str), request))
             return record
+
+    def by_job(self, job_id):
+        """Recover durable bindings without depending on process-local job cache."""
+        if not job_id:
+            return None
+        with self.connect() as db:
+            for (value,) in db.execute('SELECT record FROM jobs'):
+                record = json.loads(value)
+                if record.get('jobId') == job_id:
+                    return record
+        return None
