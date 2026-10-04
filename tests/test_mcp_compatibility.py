@@ -20,6 +20,23 @@ VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25", "2026-07-28"
 FIXTURE = Path(__file__).parent / "fixtures/synthetic-cube.dae"
 
 
+@pytest.mark.parametrize("version", ["2025-11-25", "2026-07-28"])
+def test_script_conflict_has_structured_identity_and_no_dispatch(tmp_path, version):
+    root = tmp_path / "state"
+    sessions = root / "scripts" / "sessions"
+    sessions.mkdir(parents=True)
+    sid = "a" * 32
+    (sessions / (sid + ".json")).write_text(json.dumps({"session_id": sid, "state": "superseded"}))
+    with wire_server(root, version) as wire:
+        wire.connect()
+        response = wire.request("tools/call", {"name": "script_read", "arguments": {"session_id": sid}})["result"]
+        assert response["isError"] is True
+        failure = response["structuredContent"]["failure"]
+        assert failure["code"] == "superseded"
+        assert failure["unknownOutcome"] is False
+        assert json.loads(response["content"][0]["text"])["failure"] == failure
+
+
 class Wire:
     def __init__(self, process, version):
         self.process, self.version = process, version

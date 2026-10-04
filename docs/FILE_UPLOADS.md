@@ -1,5 +1,11 @@
 # Direct local texture and PBR uploads — Builder.5
 
+On Windows, local attachment paths with an extra leading slash before the drive
+letter are normalized. Other hosts return an actionable Windows-host error.
+Relative and network paths remain rejected. Use `asset_inspect` for declared
+glTF node transforms and accessor bounds before mesh import; this metadata does
+not predict the native uploader's baked axes, pivots or material-face mapping.
+
 The MCP reads local files, stages bounded bytes and uses the avatar already
 logged into Firestorm. No Windows picker, desktop input, second login or UI
 preview is involved. Builder.5 requires updated Python/helper code **and** its

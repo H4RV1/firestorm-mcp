@@ -34,6 +34,7 @@ from .protocol import json_default
 from .paths import data_root, viewer_directory
 from .doctor import platform_support
 from .builder_tools import register_builder_tools
+from .script_workspace import ScriptConflict
 from .asset_tools import register_asset_tools
 from .ui_map import register_ui_map_tools
 from .ui_native import register_native_ui_tools
@@ -560,7 +561,7 @@ class Tools:
             out.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
             return {"manifest": str(out), **manifest}
 
-        @reg("Inspect a local COLLADA/glTF/GLB/texture export and record its SHA256. This checks file metadata, not upload eligibility, LOD quality, land impact or in-world appearance.", True)
+        @reg("Inspect a local COLLADA/glTF/GLB/texture export and record its SHA256. glTF includes declared node transforms, accessor bounds and material indices for frame preflight; native importer axes/pivots remain unverified. This checks file metadata, not upload eligibility, LOD quality, land impact or in-world appearance.", True)
         def asset_inspect(filename: str):
             return inspect_asset(filename)
 
@@ -707,6 +708,9 @@ def create_server(tools):
                 return mt.CallToolResult(content=content, structured_content=structured, is_error=False)
         except UnknownToolError as exc:
             raise MCPError(mt.INVALID_PARAMS, str(exc)) from None
+        except ScriptConflict as exc:
+            value = {"failure": exc.details}
+            return mt.CallToolResult(content=result_content(value), structured_content=value, is_error=True)
         except Exception as exc:
             return mt.CallToolResult(content=[mt.TextContent(type="text", text=f"{type(exc).__name__}: {exc}")], is_error=True)
 

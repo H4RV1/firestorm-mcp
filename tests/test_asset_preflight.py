@@ -5,6 +5,7 @@ import struct
 import pytest
 
 from firestorm_mcp.assets import inspect_asset, local_asset_path
+from firestorm_mcp.file_assets import read_file
 
 
 @pytest.mark.parametrize("suffix", [".gltf", ".glb"])
@@ -41,6 +42,15 @@ def test_attachment_windows_path_is_host_aware(tmp_path):
         path = tmp_path / "fixture.gltf"
         path.write_text('{"asset":{"version":"2.0"}}')
         assert local_asset_path("/" + path.as_posix()) == path.resolve()
+        assert read_file("/" + path.as_posix())[0] == path.resolve()
     else:
         with pytest.raises(ValueError, match="Windows host"):
             local_asset_path("/C:/fixture.gltf")
+        with pytest.raises(ValueError, match="Windows host"):
+            read_file("/C:/fixture.gltf")
+
+
+def test_upload_path_normalization_preserves_relative_and_network_rejection():
+    for name in ["relative.png", "//server/share/image.png"]:
+        with pytest.raises(ValueError, match="absolute local"):
+            read_file(name)

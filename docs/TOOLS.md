@@ -42,7 +42,7 @@ Generated from the current workflow definitions and historical Firestorm 7.2.4.8
 | `camera_release` | Release scripted camera control. This returns to viewer camera behavior, not an exact saved manual camera pose. |
 | `snapshot` | Capture Firestorm's rendered image and return an MCP image plus saved PNG and hash. Render evidence alone does not prove upload or visibility to others. |
 | `capture_orbit` | Capture repeatable orbit views around a REGION-coordinate focus and save a manifest. Releases scripted camera in finally. Caller must identify whether the subject is local preview or a server asset. |
-| `asset_inspect` | Inspect a local COLLADA/glTF/GLB/texture export and record its SHA256. This checks file metadata, not upload eligibility, LOD quality, land impact or in-world appearance. |
+| `asset_inspect` | Inspect a local COLLADA/glTF/GLB/texture export and record its SHA256. glTF includes declared node transforms, accessor bounds and material indices for frame preflight; native importer axes/pivots remain unverified. This checks file metadata, not upload eligibility, LOD quality, land impact or in-world appearance. |
 | `image_compare` | Compare two same-size images and save an absolute-difference PNG. Metrics do not establish semantic or material correctness. |
 | `local_mesh_open` | Open Firestorm's Local Mesh panel. Its local replacements are visible only in this viewer and do not prove server upload. |
 | `local_mesh_auto_reload` | Set local mesh automatic reload so Blender exports can refresh in the viewer. Returns the previous settings for restoration. |

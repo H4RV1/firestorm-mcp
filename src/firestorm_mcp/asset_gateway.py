@@ -34,6 +34,8 @@ class AssetGateway:
         # extra viewer round trip for every staging chunk and job poll.
         now = time.monotonic()
         if lease != self.synced_lease or self.synced_until - now < 30 or b.lease_until > self.synced_until + 1:
+            # An unknown sync outcome cannot justify skipping rollback.
+            self.synced_lease, self.synced_until = None, 0
             result = self.native('lease', {'leaseId': lease, 'seconds': seconds})
             if not result.get('ok'):
                 raise AssetError('lease_sync_failed', 'Native asset lease synchronization was refused; control was not established.')

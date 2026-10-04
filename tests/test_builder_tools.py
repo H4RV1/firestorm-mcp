@@ -31,6 +31,11 @@ def test_script_unicode_backup_and_hash_conflict(script):
     new = '// café 木材\n' + old["source"]
     result = workspace.write(sid, new, old["sha256"], 123)
     assert result["file_write_verified"]
+    receipt = json.loads(Path(result["receipt_path"]).read_text(encoding="utf-8"))
+    assert receipt["write_id"] == result["write_id"]
+    assert receipt["previous_sha256"] == old["sha256"]
+    assert receipt["source_sha256"] == result["sha256"]
+    assert receipt["state"] == "external_file_written" and not receipt["unknownOutcome"]
     assert not result["compile_verified"] and not result["simulator_save_verified"]
     assert Path(result["backup_path"]).read_bytes() == old["source"].encode()
     assert path.read_bytes() == new.encode()
@@ -219,3 +224,109 @@ def test_registration_during_write_cannot_resurrect_old_session(script, monkeypa
     workspace.register(path, {"pid": 123, "started": 100.0})
     with pytest.raises(sw.ScriptConflict):
         workspace.read(sid)
+
+
+@pytest.mark.parametrize('boundary', ['registration', 'receipt'])
+def test_post_replace_persistence_failure_is_unknown(script, monkeypatch, boundary):
+    workspace, sid, path = script
+    old = workspace.read(sid)
+    original = sw._atomic_json
+    def fail_after_replace(target, value):
+        if (boundary == 'registration' and target == workspace._record_path(sid)) or (boundary == 'receipt' and value.get('state') == 'external_file_written'):
+            raise OSError('synthetic private filesystem diagnostic')
+        return original(target, value)
+    monkeypatch.setattr(sw, '_atomic_json', fail_after_replace)
+    with pytest.raises(sw.ScriptConflict) as error:
+        workspace.write(sid, 'changed source', old['sha256'], 123)
+    details = error.value.details
+    assert details['code'] == 'external_write_outcome_unknown'
+    assert details['unknownOutcome'] and details['file_write_verified']
+    assert not details['compile_verified'] and not details['simulator_save_verified']
+    assert details['previous_sha256'] == old['sha256']
+    assert path.read_text() == 'changed source'
+    assert details['registration_update_verified'] == (boundary == 'receipt')
+    assert 'private filesystem diagnostic' not in str(error.value)
+    receipt = json.loads(Path(details['receipt_path']).read_text(encoding='utf-8'))
+    assert receipt['state'] == 'prepared' and receipt['unknownOutcome']
+
+
+def test_intent_persistence_failure_never_replaces_source(script, monkeypatch):
+    workspace, sid, path = script
+    old = workspace.read(sid)
+    def fail_receipt(*args):
+        raise OSError('synthetic unavailable receipt storage')
+    monkeypatch.setattr(sw, '_atomic_json', fail_receipt)
+    with pytest.raises(OSError):
+        workspace.write(sid, 'not submitted', old['sha256'], 123)
+    assert path.read_bytes() == old['source'].encode('utf-8')
+
+
+@pytest.mark.parametrize('lock_kind', ['session', 'path'])
+def test_lock_cleanup_failure_reports_completed_write(script, monkeypatch, lock_kind):
+    workspace, sid, path = script
+    old = workspace.read(sid)
+    original = Path.unlink
+    def reject_owned_lock(target, *args, **kwargs):
+        selected = (target == workspace._record_path(sid).with_suffix('.lock') if lock_kind == 'session'
+                    else target.parent == workspace.root / 'locks')
+        if selected:
+            raise OSError('synthetic private cleanup diagnostic')
+        return original(target, *args, **kwargs)
+    monkeypatch.setattr(Path, 'unlink', reject_owned_lock)
+    with pytest.raises(sw.ScriptConflict) as error:
+        workspace.write(sid, 'completed source', old['sha256'], 123)
+    details = error.value.details
+    assert details['code'] == 'external_write_cleanup_failed'
+    assert details['file_write_verified'] and not details['unknownOutcome']
+    assert details['cleanup_verified'] is False
+    assert not details['compile_verified'] and not details['simulator_save_verified']
+    assert details['previous_sha256'] == old['sha256']
+    assert details['source_sha256'] == sw.digest(b'completed source')
+    assert Path(details['receipt_path']).exists()
+    assert path.read_text() == 'completed source'
+    assert 'private cleanup diagnostic' not in str(error.value)
+
+
+def test_cleanup_failure_preserves_original_conflict(script, monkeypatch):
+    workspace, sid, path = script
+    old = workspace.read(sid)
+    original = Path.unlink
+    def reject_session_lock(target, *args, **kwargs):
+        if target == workspace._record_path(sid).with_suffix('.lock'):
+            raise OSError('synthetic cleanup failure')
+        return original(target, *args, **kwargs)
+    monkeypatch.setattr(Path, 'unlink', reject_session_lock)
+    with pytest.raises(sw.ScriptConflict) as error:
+        workspace.write(sid, 'not written', '0' * 64, 123)
+    assert error.value.code == 'source_changed'
+    assert error.value.details['cleanup_verified'] is False
+    assert not error.value.details['unknownOutcome']
+    assert path.read_bytes() == old['source'].encode('utf-8')
+
+
+def test_replaced_lock_is_not_deleted(script):
+    workspace, sid, path = script
+    lock = workspace._record_path(sid).with_suffix('.lock')
+    with pytest.raises(sw.ScriptCleanupError):
+        with workspace._lock(sid):
+            foreign = lock.with_suffix('.foreign')
+            foreign.write_text('another owner')
+            os.replace(foreign, lock)
+    assert lock.read_text() == 'another owner'
+
+
+def test_source_temp_cleanup_failure_preserves_completed_receipt(script, monkeypatch):
+    workspace, sid, path = script
+    old = workspace.read(sid)
+    original = Path.unlink
+    def reject_source_temp(target, *args, **kwargs):
+        if target.name.startswith(path.name + '.') and target.suffix == '.tmp':
+            raise OSError('synthetic source temp cleanup failure')
+        return original(target, *args, **kwargs)
+    monkeypatch.setattr(Path, 'unlink', reject_source_temp)
+    with pytest.raises(sw.ScriptConflict) as error:
+        workspace.write(sid, 'completed source', old['sha256'], 123)
+    assert error.value.code == 'external_write_cleanup_failed'
+    assert error.value.details['file_write_verified']
+    assert not error.value.details['unknownOutcome']
+    assert not error.value.details['simulator_save_verified']

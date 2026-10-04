@@ -1,5 +1,13 @@
 # Asset and inventory integration, contract v1
 
+The bridge durably records reconciliation intent as well as mutation intent.
+Job/request polling recovers these bindings after helper restart and updates the
+original request when reconciliation confirms it. Submit and retained-job replies
+must match the saved request ID/fingerprint before journal updates; known job
+cancellation verifies that binding before dispatch. Missing acknowledgements
+remain unknown and never authorize automatic replay. Native lease refusals fail
+control acquisition rather than reporting synchronized ownership.
+
 Builder.5 extends this contract with [direct texture/PBR file uploads](FILE_UPLOADS.md).
 Discover `prepareUpload`/`commitUpload`; older native viewers do not support them.
 The original sound path retains its zero-cost restriction.

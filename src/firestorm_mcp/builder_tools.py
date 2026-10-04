@@ -97,13 +97,21 @@ def register_builder_tools(tools):
 
     @reg("Select 1-32 explicit loaded owned modifiable root UUIDs. Requires lease and exact prior object_selection.selection_identity, including order. Reinspect selection/properties before planning link/unlink. Does not link or change materials.")
     def object_select(object_ids: list[str], expected_selection: list[dict]):
+        def canonical(value):
+            if isinstance(value, dict) and set(value) == {"$uuid"}:
+                value = value["$uuid"]
+            result = UUID(value)
+            if not result.int:
+                raise ValueError("Selection identities require nonzero UUIDs")
+            return str(result)
+        object_ids = [canonical(value) for value in object_ids]
         if not 1 <= len(object_ids) <= 32 or len(set(object_ids)) != len(object_ids) or len(expected_selection) > 256:
             raise ValueError("Supply 1-32 distinct roots and at most 256 prior selection identities")
         expected = []
         for item in expected_selection:
             if set(item) != {"object_id", "root_id"}:
                 raise ValueError("Each selection identity requires exactly object_id and root_id")
-            expected.append({key: {"$uuid": str(UUID(value))} for key, value in item.items()})
+            expected.append({key: {"$uuid": canonical(value)} for key, value in item.items()})
         client.rpc("assert_control")
         return native("selectObjects", {"object_ids": [{"$uuid": str(UUID(x))} for x in object_ids], "expected_selection": expected})
 

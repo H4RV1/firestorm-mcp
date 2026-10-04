@@ -1,5 +1,17 @@
 # Script editing through Firestorm
 
+Re-registering the same external file supersedes its previous session. Session
+lists expose inactive/conflict states. Registration and writes share a path
+lock so an old save cannot resurrect a superseded registration.
+
+Each changed write saves a private local intent receipt before replacing the
+watched source and returns `write_id`, `receipt_path` and before/after hashes.
+Persistence failure after replacement returns a structured
+`external_write_outcome_unknown` tool error. The task executor preserves these
+failure details and stops without retrying. Inspect the receipt/file before any
+further write. A local receipt does not identify a simulator item or certify
+compilation, simulator save or runtime behavior.
+
 Start the viewer through `firestorm-mcp-launch --script-editor` (plus the normal
 viewer and data-directory options). This adds an ExternalEditor command to the
 launcher's session settings. It does not edit Firestorm's installed files.

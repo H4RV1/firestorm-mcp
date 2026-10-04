@@ -10,6 +10,12 @@ from .workflows import READ_TOOLS
 from .background_ui import BACKGROUND_READS, BACKGROUND_WRITES
 
 
+class ToolFailure(RuntimeError):
+    def __init__(self, value):
+        super().__init__("MCP operation failed; inspect state before retrying")
+        self.value = value
+
+
 def validate_plan(plan, allow_writes=False, background_only=False):
     if not isinstance(plan, dict) or set(plan) != {"version", "calls"} or plan["version"] != 1:
         raise ValueError("Plan requires version:1 and calls")
@@ -39,7 +45,11 @@ async def execute(session, plan, allow_writes=False, background_only=False):
     async def call(name, args):
         result = await session.call_tool(name, args)
         if result.is_error:
-            raise RuntimeError("MCP operation failed; inspect state before retrying")
+            try:
+                value = json.loads(next(part.text for part in result.content if part.type == "text"))
+            except (ValueError, StopIteration):
+                value = None
+            raise ToolFailure(value)
         return unpack(result)
     status = await call("connection_status", {})
     if not status.get("connected"):
@@ -62,8 +72,11 @@ async def execute(session, plan, allow_writes=False, background_only=False):
                 return {"complete": False, "results": results, "stopped": "lease_lost"}
             try:
                 value = await call(step["tool"], step["arguments"])
-            except Exception:
-                return {"complete": False, "results": results, "stopped": "step_error", "unknownOutcome": True,
+            except Exception as exc:
+                failure = exc.value.get("failure") if isinstance(exc, ToolFailure) and isinstance(exc.value, dict) else None
+                return {"complete": False, "results": results, "stopped": "step_error",
+                        "unknownOutcome": failure.get("unknownOutcome", True) if isinstance(failure, dict) else True,
+                        **({"failure": failure} if isinstance(failure, dict) else {}),
                         "failed_tool": step["tool"], "retry_performed": False}
             results.append({"tool": step["tool"], "result": value})
             if isinstance(value, dict) and value.get("state") in {"queued", "running"}:

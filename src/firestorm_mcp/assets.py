@@ -12,13 +12,18 @@ import xml.etree.ElementTree as ET
 from PIL import Image, ImageChops, ImageStat
 
 
-def local_asset_path(filename):
+def normalize_attachment_path(filename):
     """Accept the attachment-style /C:/ prefix only on its native host."""
+    filename = os.fspath(filename)
     if re.match(r"^/[A-Za-z]:[/\\]", filename):
         if os.name != "nt":
             raise ValueError("Windows attachment path requires a Windows host; provide a local asset path")
         filename = filename[1:]
-    return Path(filename).resolve(strict=True)
+    return filename
+
+
+def local_asset_path(filename):
+    return Path(normalize_attachment_path(filename)).resolve(strict=True)
 
 
 def gltf_frame_metadata(data):

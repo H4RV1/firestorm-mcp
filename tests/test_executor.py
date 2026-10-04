@@ -63,3 +63,25 @@ def test_executor_validates_entire_plan_before_contact(tmp_path):
     with pytest.raises(Exception, match='path'):
         asyncio.run(execute(session, p, allow_writes=True))
     assert not session.calls
+
+
+@pytest.mark.parametrize("unknown", [True, False])
+def test_executor_preserves_structured_failure_receipt_without_replay(tmp_path, unknown):
+    session = Session(tmp_path)
+    original = session.call_tool
+    receipt = {"code": "external_write_outcome_unknown" if unknown else "superseded",
+               "unknownOutcome": unknown, "write_id": "synthetic", "source_sha256": "a" * 64}
+    async def call(name, args):
+        if name == "object_selection":
+            session.calls.append(name)
+            return SimpleNamespace(is_error=True, content=[SimpleNamespace(
+                type="text", text=json.dumps({"failure": receipt}))])
+        return await original(name, args)
+    session.call_tool = call
+    result = asyncio.run(execute(session, plan("object_selection", "script_sessions")))
+    assert result["failure"] == receipt
+    assert result["unknownOutcome"] is unknown
+    assert result["retry_performed"] is False
+    assert "script_sessions" not in session.calls
+    assert session.calls.count("object_selection") == 1
+    assert session.calls[-1] == "control_release"

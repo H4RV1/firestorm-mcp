@@ -11,12 +11,14 @@ from urllib.parse import unquote, urlsplit
 from PIL import Image
 
 from .asset_contract import identifier
+from .assets import normalize_attachment_path
 
 MAX_SOURCE = 32 * 1024 * 1024
 MAX_PAYLOAD = 8 * 1024 * 1024
 
 
 def read_file(filename):
+    filename = normalize_attachment_path(filename)
     path = Path(filename)
     if not path.is_absolute() or str(filename).startswith(('//', '\\\\')):
         raise ValueError('Use an absolute local file path')

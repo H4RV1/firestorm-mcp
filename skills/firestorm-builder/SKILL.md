@@ -84,6 +84,11 @@ then `script_sessions` -> `script_read` -> `script_write` with the prior SHA256.
 Never write an arbitrary temp file. Local writes trigger Firestorm's watcher but
 do not prove compilation. Read the exact editor's compiler rows, verify save,
 then verify execution when relevant. Do not guess which duplicate editor is open.
+Retain the returned `write_id`, receipt and before/after hashes. Structured
+`external_write_outcome_unknown` means inspect that receipt/source before another
+write; `external_write_cleanup_failed` can still include a verified local write.
+Neither verifies compilation or simulator save. The executor retains these
+failure details and stops without replay.
 Closing/reopening can remove the temporary file or register another session. An
 active file does not prove object/item/editor binding; never choose the newest
 same-name session. An old successful compiler row does not verify this write:

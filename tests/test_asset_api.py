@@ -378,3 +378,23 @@ def test_native_lease_refusal_blocks_asset_dispatch(gateway, monkeypatch):
     monkeypatch.setattr(gateway.bridge, 'call', reject_lease)
     assert gateway.handle('submit', folder_request())['failure']['code'] == 'lease_sync_failed'
     assert not any(op == 'submit' for op, _ in gateway.bridge.calls)
+
+
+def test_cached_lease_renewal_timeout_forces_native_rollback_sync(gateway, monkeypatch):
+    gateway.sync_lease()
+    old_until = gateway.bridge.lease_until
+    gateway.bridge.lease_until += 120
+    original = gateway.bridge.call
+    failed = []
+    def lose_renewal(api, operation, arguments, **kwargs):
+        if operation == 'lease' and not failed:
+            failed.append(True)
+            raise TimeoutError('synthetic lost renewal acknowledgement')
+        return original(api, operation, arguments, **kwargs)
+    monkeypatch.setattr(gateway.bridge, 'call', lose_renewal)
+    with pytest.raises(TimeoutError):
+        gateway.sync_lease()
+    gateway.bridge.lease_until = old_until
+    assert gateway.synced_lease is None and gateway.synced_until == 0
+    gateway.sync_lease()
+    assert sum(operation == 'lease' for operation, _ in gateway.bridge.calls) == 2

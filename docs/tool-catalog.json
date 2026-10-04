@@ -1,7 +1,7 @@
 [
   {
     "name": "asset_inspect",
-    "description": "Inspect a local COLLADA/glTF/GLB/texture export and record its SHA256. This checks file metadata, not upload eligibility, LOD quality, land impact or in-world appearance.",
+    "description": "Inspect a local COLLADA/glTF/GLB/texture export and record its SHA256. glTF includes declared node transforms, accessor bounds and material indices for frame preflight; native importer axes/pivots remain unverified. This checks file metadata, not upload eligibility, LOD quality, land impact or in-world appearance.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
